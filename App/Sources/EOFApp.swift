@@ -1,7 +1,7 @@
 import SwiftUI
 
 @main
-struct TesseraApp: App {
+struct EOFApp: App {
     @StateObject private var model = AppModel.shared
     @StateObject private var settings = AppSettings.shared
     @Environment(\.scenePhase) private var scenePhase

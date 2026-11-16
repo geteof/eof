@@ -1,5 +1,5 @@
 import XCTest
-@testable import TesseraCore
+@testable import EOFCore
 
 final class LanguageTests: XCTestCase {
     func testDetectByExtensionAndName() {

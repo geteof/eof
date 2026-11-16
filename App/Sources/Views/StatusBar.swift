@@ -1,5 +1,5 @@
 import SwiftUI
-import TesseraCore
+import EOFCore
 
 /// Caret position, language, indentation, encoding and line endings. Each item opens its own menu.
 struct StatusBar: View {

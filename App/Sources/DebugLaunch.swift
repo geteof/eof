@@ -54,6 +54,6 @@ enum DebugLaunch {
 }
 
 extension Notification.Name {
-    static let debugFindQuery = Notification.Name("TesseraDebugFindQuery")
+    static let debugFindQuery = Notification.Name("EOFDebugFindQuery")
 }
 #endif

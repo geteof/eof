@@ -1,5 +1,5 @@
 # Deployment settings
-name: tessera-sample
+name: eof-sample
 replicas: 3
 enabled: true
 image: "registry.example.com/app:1.4.2"

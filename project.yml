@@ -1,4 +1,4 @@
-name: Tessera
+name: EOF
 options:
   bundleIdPrefix: moe.luoling
   deploymentTarget:
@@ -14,21 +14,21 @@ settings:
     ENABLE_USER_SCRIPT_SANDBOXING: YES
     DEVELOPMENT_TEAM: 433DLLA855
 packages:
-  TesseraCore:
-    path: TesseraCore
+  EOFCore:
+    path: EOFCore
 targets:
-  Tessera:
+  EOF:
     type: application
     platform: iOS
     sources:
       - path: App/Sources
       - path: App/Resources
     dependencies:
-      - package: TesseraCore
+      - package: EOFCore
     info:
       path: App/Info.plist
       properties:
-        CFBundleDisplayName: Tessera
+        CFBundleDisplayName: EOF
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         CFBundleLocalizations: [en, zh-Hans]
@@ -82,18 +82,18 @@ targets:
               - public.folder
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: moe.luoling.tessera
-        PRODUCT_NAME: Tessera
+        PRODUCT_BUNDLE_IDENTIFIER: moe.luoling.eof
+        PRODUCT_NAME: EOF
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
         GENERATE_INFOPLIST_FILE: NO
         CODE_SIGN_STYLE: Automatic
         SWIFT_EMIT_LOC_STRINGS: YES
 schemes:
-  Tessera:
+  EOF:
     build:
       targets:
-        Tessera: all
+        EOF: all
     run:
       config: Debug
     archive:

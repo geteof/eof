@@ -1,5 +1,5 @@
 import SwiftUI
-import TesseraCore
+import EOFCore
 
 struct SidebarView: View {
     @EnvironmentObject private var model: AppModel
@@ -111,7 +111,7 @@ struct SidebarView: View {
             }
         }
         .listStyle(.sidebar)
-        .navigationTitle("Tessera")
+        .navigationTitle("EOF")
         .toolbar {
             ToolbarItem(placement: .topBarLeading) {
                 Button {

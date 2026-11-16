@@ -1,6 +1,6 @@
 import Combine
 import SwiftUI
-import TesseraCore
+import EOFCore
 import WebKit
 
 /// Rendered Markdown or HTML. Markdown updates in place so the scroll position holds while typing.

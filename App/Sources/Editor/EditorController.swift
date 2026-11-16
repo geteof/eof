@@ -1,5 +1,5 @@
 import SwiftUI
-import TesseraCore
+import EOFCore
 import UIKit
 
 /// Owns the text view of one document. The document keeps the controller alive, so the caret,
@@ -27,7 +27,7 @@ final class EditorController: NSObject, UITextViewDelegate, CodeTextViewCommands
     private var styledRange: NSRange?
     private var generation = 0
     private var pendingTokenize: DispatchWorkItem?
-    private let tokenizeQueue = DispatchQueue(label: "app.tessera.tokenize", qos: .userInitiated)
+    private let tokenizeQueue = DispatchQueue(label: "app.eof.tokenize", qos: .userInitiated)
 
     // Find and bracket decorations
     private var findRanges: [NSRange] = []

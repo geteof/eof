@@ -1,6 +1,6 @@
 import Combine
 import SwiftUI
-import TesseraCore
+import EOFCore
 import UIKit
 
 /// User preferences, stored in `UserDefaults`.

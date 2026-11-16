@@ -1,5 +1,5 @@
 import SwiftUI
-import TesseraCore
+import EOFCore
 import UIKit
 
 struct EditorTheme: Identifiable, Equatable {

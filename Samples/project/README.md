@@ -1,4 +1,4 @@
-# Tessera Sample Project
+# EOF Sample Project
 
 A small folder for trying the editor. It holds **several formats** so you can check
 syntax colouring, the *outline*, find and the preview.
@@ -15,7 +15,7 @@ syntax colouring, the *outline*, find and the preview.
 | Python   | `src/report.py`       |
 | YAML     | `config/deploy.yaml`  |
 
-> Tessera keeps files on your device.
+> EOF keeps files on your device.
 
 ```swift
 let greeting = Greeter(name: "world").greet()

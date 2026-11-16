@@ -1,5 +1,5 @@
 import SwiftUI
-import TesseraCore
+import EOFCore
 
 /// Read-only hex dump for files that are not text.
 struct HexView: View {

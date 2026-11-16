@@ -1,6 +1,6 @@
 import Combine
 import SwiftUI
-import TesseraCore
+import EOFCore
 
 final class FindModel: ObservableObject {
     @Published var query = ""

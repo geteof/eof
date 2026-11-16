@@ -22,7 +22,7 @@ struct Greeter {
 @main
 enum Main {
     static func main() {
-        let greeter = Greeter(name: "Tessera")
+        let greeter = Greeter(name: "EOF")
         print(greeter.greet(times: 2)) /* twice */
         #if DEBUG
         print(0x2A, 3.14, true, nil as Int? as Any)

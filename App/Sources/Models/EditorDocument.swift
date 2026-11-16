@@ -1,6 +1,6 @@
 import Combine
 import SwiftUI
-import TesseraCore
+import EOFCore
 
 /// Caret position and counts, published separately so that moving the caret only redraws the status bar.
 final class CursorStatus: ObservableObject {

@@ -1,6 +1,6 @@
 import Combine
 import SwiftUI
-import TesseraCore
+import EOFCore
 
 struct RecentItem: Codable, Identifiable, Equatable {
     var id: String { path }

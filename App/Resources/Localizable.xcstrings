@@ -1664,15 +1664,15 @@
         }
       }
     },
-    "Tessera": {
+    "EOF": {
       "shouldTranslate": false
     },
-    "Tessera keeps your files on your device. It has no account and collects no data.": {
+    "EOF keeps your files on your device. It has no account and collects no data.": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tessera 只在你的设备上处理文件，没有账号，也不收集任何数据。"
+            "value": "EOF 只在你的设备上处理文件，没有账号，也不收集任何数据。"
           }
         }
       }

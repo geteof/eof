@@ -1,5 +1,5 @@
 import SwiftUI
-import TesseraCore
+import EOFCore
 
 struct SettingsView: View {
     @EnvironmentObject private var settings: AppSettings
@@ -82,7 +82,7 @@ struct SettingsView: View {
                 Section {
                     LabeledContent("Version", value: version)
                 } footer: {
-                    Text("Tessera keeps your files on your device. It has no account and collects no data.")
+                    Text("EOF keeps your files on your device. It has no account and collects no data.")
                 }
             }
             .navigationTitle("Settings")
@@ -108,7 +108,7 @@ private struct ThemePreview: View {
     @EnvironmentObject private var settings: AppSettings
     @Environment(\.colorScheme) private var colorScheme
 
-    private static let sample = "// Tessera\nfunc greet(_ name: String) -> String {\n    let count = 42\n    return \"Hello, \\(name)!\"\n}"
+    private static let sample = "// EOF\nfunc greet(_ name: String) -> String {\n    let count = 42\n    return \"Hello, \\(name)!\"\n}"
 
     var body: some View {
         let theme = settings.theme(dark: colorScheme == .dark)
