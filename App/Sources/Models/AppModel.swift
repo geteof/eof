@@ -94,6 +94,9 @@ final class AppModel: ObservableObject {
     private let defaults = UserDefaults.standard
     private var folderIsScoped = false
     private var untitledCounter = 0
+    private var loadingPaths = Set<String>()
+    /// Files load one at a time, so several opened together appear in the order they were asked for.
+    private let loadQueue = DispatchQueue(label: "moe.luoling.eof.load", qos: .userInitiated)
 
     var activeDocument: EditorDocument? { documents.first { $0.id == activeID } }
 
@@ -131,12 +134,14 @@ final class AppModel: ObservableObject {
             if let range { DispatchQueue.main.async { existing.controller.select(range, focus: false) } }
             return
         }
+        guard loadingPaths.insert(target.path).inserted else { return }
         loadingName = url.lastPathComponent
         let fallbacks = (settings.defaultEncoding, settings.defaultLineEnding)
-        DispatchQueue.global(qos: .userInitiated).async {
+        loadQueue.async {
             let result = Result { try LoadedFile.load(url, defaults: fallbacks) }
             DispatchQueue.main.async {
-                self.loadingName = nil
+                self.loadingPaths.remove(target.path)
+                if self.loadingPaths.isEmpty { self.loadingName = nil }
                 switch result {
                 case .success(let loaded):
                     let document = EditorDocument(url: url, loaded: loaded)

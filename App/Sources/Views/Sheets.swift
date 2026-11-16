@@ -295,6 +295,9 @@ struct CompareSheet: View {
     }
 }
 
+/// Folders that hold dependencies or build output; searching them is slow and rarely wanted.
+private let skippedSearchFolders: Set<String> = [".git", "node_modules", ".build", "build", "DerivedData", "Pods", ".svn", ".hg", "dist", "target", ".next", ".venv", "venv", "__pycache__", ".idea", ".gradle"]
+
 /// Search every text file under the open folder.
 struct FolderSearchView: View {
     @EnvironmentObject private var model: AppModel
@@ -313,8 +316,6 @@ struct FolderSearchView: View {
         let relativePath: String
         let matches: [LineMatch]
     }
-
-    private static let skippedFolders: Set<String> = [".git", "node_modules", ".build", "build", "DerivedData", "Pods", ".svn", ".hg", "dist", "target", ".next", ".venv", "venv", "__pycache__", ".idea", ".gradle"]
 
     var body: some View {
         NavigationStack {
@@ -417,7 +418,7 @@ struct FolderSearchView: View {
                 if Task.isCancelled { return }
                 let values = try? item.resourceValues(forKeys: Set(keys))
                 if values?.isDirectory == true {
-                    if FolderSearchView.skippedFolders.contains(item.lastPathComponent) { enumerator.skipDescendants() }
+                    if skippedSearchFolders.contains(item.lastPathComponent) { enumerator.skipDescendants() }
                     continue
                 }
                 guard values?.isRegularFile == true, let size = values?.fileSize, size > 0, size < 2_000_000 else { continue }
