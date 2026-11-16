@@ -1,0 +1,9 @@
+$accent: #2f62e0;
+@mixin card($radius: 12px) { border-radius: $radius; padding: 1rem; }
+
+.button {
+  @include card(8px);
+  color: white;
+  background: $accent;
+  &:hover { opacity: 0.9; }
+}

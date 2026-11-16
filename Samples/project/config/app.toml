@@ -1,0 +1,10 @@
+# TOML sample
+title = "Tessera"
+
+[editor]
+font_size = 14
+wrap = true
+themes = ["paper", "midnight"]
+
+[[plugins]]
+name = "markdown"

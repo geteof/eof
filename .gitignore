@@ -5,3 +5,7 @@ build/
 xcuserdata/
 .DS_Store
 *.xcarchive
+large.log
+medium.swift
+*.bundle
+App/Info.plist

@@ -1,0 +1,9 @@
+diff --git a/src/app.js b/src/app.js
+index 3f1c2aa..9b7d410 100644
+--- a/src/app.js
++++ b/src/app.js
+@@ -3,5 +3,5 @@ const cache = new Map();
+ export async function greet(req, res) {
+-  const name = req.query.name || "world";
++  const name = req.query.name ?? "world";
+   if (!cache.has(name)) {

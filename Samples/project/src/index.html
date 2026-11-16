@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Tessera Sample</title>
+  <style>
+    body { font-family: -apple-system, sans-serif; margin: 2rem; }
+    .card { border: 1px solid #ccd; border-radius: 12px; padding: 1rem 1.25rem; }
+  </style>
+</head>
+<body>
+  <!-- A comment -->
+  <div class="card" id="main">
+    <h1>Hello &amp; welcome</h1>
+    <p>This page is previewed inside <strong>Tessera</strong>.</p>
+    <a href="https://example.com">A link</a>
+  </div>
+  <script>
+    const el = document.getElementById("main");
+    console.log("loaded", el.id);
+  </script>
+</body>
+</html>
