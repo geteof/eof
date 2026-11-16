@@ -11,6 +11,7 @@ import SwiftUI
 ///     -line <n>         put the caret on this line
 ///     -readonly         open in read-only mode
 ///     -selftest         drive the editor through its commands and write Documents/selftest.txt
+///     -layoutreport     write window, safe-area and bar geometry to Documents/layout.txt
 enum DebugLaunch {
     private static let arguments = ProcessInfo.processInfo.arguments
     private static var consumed = false
@@ -43,6 +44,9 @@ enum DebugLaunch {
         if let name = values("-sheet").first { sheet = EditorSheet(rawValue: name) }
         if let line = values("-line").first.flatMap(Int.init) {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { document.controller.goToLine(line) }
+        }
+        if arguments.contains("-layoutreport") {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 3) { layoutReport(document) }
         }
         if arguments.contains("-selftest") {
             DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { selfTest(document) }
@@ -147,6 +151,51 @@ extension DebugLaunch {
         let failures = lines.filter { $0.hasPrefix("FAIL") }.count
         lines.append("RESULT \(failures == 0 ? "ALL PASSED" : "\(failures) FAILED")")
         let output = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0].appendingPathComponent("selftest.txt")
+        try? lines.joined(separator: "\n").write(to: output, atomically: true, encoding: .utf8)
+    }
+}
+
+extension DebugLaunch {
+    /// Describes how the system laid the window out: needed for displays this code cannot be seen on.
+    static func layoutReport(_ document: EditorDocument) {
+        var lines: [String] = []
+        let editor = document.controller.view
+        func rect(_ r: CGRect) -> String { "(\(Int(r.minX)),\(Int(r.minY)) \(Int(r.width))x\(Int(r.height)))" }
+        func insets(_ i: UIEdgeInsets) -> String { "top=\(Int(i.top)) left=\(Int(i.left)) bottom=\(Int(i.bottom)) right=\(Int(i.right))" }
+        if let window = editor.window {
+            let screen = window.screen
+            lines.append("screen bounds=\(rect(screen.bounds)) nativeBounds=\(rect(screen.nativeBounds)) scale=\(screen.scale)")
+            lines.append("window bounds=\(rect(window.bounds)) frame=\(rect(window.frame)) safeArea \(insets(window.safeAreaInsets))")
+            if let scene = window.windowScene {
+                lines.append("scene orientation=\(scene.interfaceOrientation.rawValue) (1 portrait, 2 upsideDown, 3 landscapeLeft, 4 landscapeRight) statusBarFrame=\(rect(scene.statusBarManager?.statusBarFrame ?? .zero)) sceneBounds=\(rect(scene.coordinateSpace.bounds))")
+            }
+            let traits = window.traitCollection
+            lines.append("traits horizontal=\(traits.horizontalSizeClass.rawValue) vertical=\(traits.verticalSizeClass.rawValue) (1 compact, 2 regular) idiom=\(traits.userInterfaceIdiom.rawValue) (0 phone, 1 pad)")
+            lines.append("editor frameInWindow=\(rect(editor.convert(editor.bounds, to: window))) safeArea \(insets(editor.safeAreaInsets))")
+            if let root = window.rootViewController?.view {
+                lines.append("root frame=\(rect(root.frame)) safeArea \(insets(root.safeAreaInsets)) transform=\(root.transform)")
+            }
+            // Bars and other chrome, with where they sit in the window.
+            var count = 0
+            func walk(_ view: UIView, depth: Int) {
+                guard count < 120, depth < 14 else { return }
+                let name = String(describing: type(of: view))
+                let interesting = view is UINavigationBar || view is UIToolbar || view is UITabBar || name.contains("Bar") || name.contains("Toolbar") || name.contains("Glass") || name.contains("Platter") || name.contains("Button") || name.contains("Sidebar")
+                if interesting, !view.isHidden, view.bounds.width > 0 {
+                    count += 1
+                    lines.append("\(String(repeating: " ", count: min(depth, 8)))\(name) \(rect(view.convert(view.bounds, to: window))) alpha=\(view.alpha)")
+                }
+                for sub in view.subviews { walk(sub, depth: depth + 1) }
+            }
+            walk(window, depth: 0)
+            for other in window.windowScene?.windows ?? [] where other !== window {
+                lines.append("other window \(String(describing: type(of: other))) frame=\(rect(other.frame)) level=\(other.windowLevel.rawValue) hidden=\(other.isHidden)")
+            }
+        } else {
+            lines.append("editor view is not in a window")
+        }
+        lines.append("screens: " + UIScreen.screens.map { rect($0.bounds) }.joined(separator: " "))
+        let output = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0].appendingPathComponent("layout.txt")
         try? lines.joined(separator: "\n").write(to: output, atomically: true, encoding: .utf8)
     }
 }
