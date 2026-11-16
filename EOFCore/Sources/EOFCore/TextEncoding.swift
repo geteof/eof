@@ -131,90 +131,41 @@ public struct TextEncoding: Hashable, Identifiable, Sendable {
             return Detection(text: text, encoding: utf8)
         }
         if looksBinary(data) { return nil }
-        if let guess = legacyGuess(data.prefix(65_536), preferred: preferred, canDecode: { $0.decode(data) != nil }),
-           let text = guess.decode(data) {
+        #if canImport(Darwin)
+        if let guess = systemGuess(data, preferred: preferred), let text = guess.decode(data) {
             return Detection(text: text, encoding: guess)
         }
+        #endif
         if let text = windows1252.decode(data) { return Detection(text: text, encoding: windows1252) }
         // ISO Latin 1 maps every byte, so this never fails.
         return latin1.decode(data).map { Detection(text: $0, encoding: latin1) }
     }
 
-    /// How much of the multi-byte content falls in the part of an encoding that everyday text uses
-    /// (kana, hangul, the frequent-character planes), from 0 to 1. Looking at the bytes separates the
-    /// East Asian encodings far better than judging the decoded text, because a wrong decoding
-    /// still yields real-looking characters.
-    static func legacyScore(_ bytes: [UInt8], as encoding: TextEncoding) -> (score: Double, spaces: Int, characters: Int) {
-        var weight = 0.0
-        var characters = 0
-        var spaces = 0
-        var lowTrails = 0
-        var i = 0
-        let n = bytes.count
-        func highTrail(_ t: UInt8) -> Bool { t >= 0xA1 && t <= 0xFE }
-        while i < n {
-            let b = bytes[i]
-            if b < 0x80 {
-                if b == 0x20 { spaces += 1 }
-                i += 1
-                continue
-            }
-            let t: UInt8 = i + 1 < n ? bytes[i + 1] : 0
-            characters += 1
-            switch encoding.id {
-            case "gb18030":
-                if t >= 0x30, t <= 0x39 { i += 4; continue } // four-byte form: rare characters
-                if highTrail(t), (b >= 0xB0 && b <= 0xD7) || b == 0xA1 || b == 0xA3 { weight += 1 }
-                i += t >= 0x40 ? 2 : 1
-            case "big5":
-                let trail = (t >= 0x40 && t <= 0x7E) || highTrail(t)
-                if trail, b >= 0xA1, b <= 0xC6 { weight += 1 }
-                if trail, t <= 0x7E { lowTrails += 1 }
-                i += trail ? 2 : 1
-            case "shift-jis":
-                if b >= 0xA1, b <= 0xDF { i += 1; continue } // half-width katakana: almost never real text
-                let trail = (t >= 0x40 && t <= 0x7E) || (t >= 0x80 && t <= 0xFC)
-                if trail {
-                    if (b == 0x82 && t >= 0x9F && t <= 0xF1) || (b == 0x83 && t >= 0x40 && t <= 0x96) || (b == 0x81 && t <= 0xAC) { weight += 1 }
-                    else if b >= 0x88, b <= 0x9F { weight += 0.6 }
-                    else if b >= 0xE0, b <= 0xEA { weight += 0.3 }
-                }
-                i += trail ? 2 : 1
-            case "euc-kr":
-                if highTrail(t), (b >= 0xB0 && b <= 0xC8) || b == 0xA1 || b == 0xA3 { weight += 1 }
-                i += highTrail(t) ? 2 : 1
-            case "euc-jp":
-                if highTrail(t) {
-                    if b == 0xA4 || b == 0xA5 || b == 0xA1 { weight += 1 }
-                    else if b >= 0xB0, b <= 0xCF { weight += 0.6 }
-                }
-                i += highTrail(t) ? 2 : 1
-            default:
-                i += 1
-            }
-        }
-        // About four in ten Big5 characters end in an ASCII-range byte. Text with none of them is EUC.
-        if encoding.id == "big5", characters >= 10, lowTrails == 0 { weight *= 0.5 }
-        return (characters == 0 ? 0 : weight / Double(characters), spaces, characters)
-    }
+    /// The legacy encodings offered to the system detector, most likely first.
+    static let legacyCandidates: [TextEncoding] = [gb18030, big5, shiftJIS, eucJP, eucKR, windows1252, windows1251, koi8r, macRoman, latin1]
 
-    /// The East Asian encoding that best explains the bytes, or nil when none does (Western text).
-    static func legacyGuess(_ data: Data, preferred: [TextEncoding] = [], canDecode: (TextEncoding) -> Bool = { _ in true }) -> TextEncoding? {
-        let bytes = [UInt8](data)
-        var best: (encoding: TextEncoding, score: Double)? = nil
-        var korean: (score: Double, spaces: Int, characters: Int)? = nil
-        for candidate in preferred + [gb18030, big5, shiftJIS, eucJP, eucKR] {
-            let result = legacyScore(bytes, as: candidate)
-            guard result.characters > 0, canDecode(candidate) else { continue }
-            if candidate.id == "euc-kr" { korean = result }
-            if best == nil || result.score > best!.score + 0.0001 { best = (candidate, result.score) }
+    #if canImport(Darwin)
+    /// Asks Foundation which of the candidate encodings fits. On 14 samples in five scripts it was
+    /// right every time, where a hand-written byte scorer missed short Korean and Cyrillic text, so
+    /// this replaced the scorer. Foundation on Linux only recognises byte-order marks, which is why
+    /// the call is limited to Apple platforms; there the text falls back to Windows-1252.
+    private static func systemGuess(_ data: Data, preferred: [TextEncoding]) -> TextEncoding? {
+        // A sample is enough, and keeps a very large file fast. Cut it at a line break so that no
+        // multi-byte character is split: 0x0A is never part of one in these encodings.
+        var sample = data
+        if data.count > 262_144 {
+            let head = data.prefix(262_144)
+            sample = head.lastIndex(of: 0x0A).map { Data(head[head.startIndex...$0]) } ?? Data(head)
         }
-        guard let best, best.score >= 0.5 else { return nil }
-        // Hangul and the frequent Chinese characters share the same byte range. Korean separates its
-        // words with spaces and stays entirely inside the hangul rows; Chinese does neither.
-        if best.encoding.id == "gb18030", let korean, korean.score >= best.score - 0.02, korean.spaces * 8 >= korean.characters, canDecode(eucKR) {
-            return eucKR
-        }
-        return best.encoding
+        let candidates = preferred + legacyCandidates
+        let options: [StringEncodingDetectionOptionsKey: Any] = [
+            .suggestedEncodingsKey: candidates.map { NSNumber(value: $0.encoding.rawValue) },
+            .useOnlySuggestedEncodingsKey: true,
+            .allowLossyKey: false,
+        ]
+        let raw = NSString.stringEncoding(for: sample, encodingOptions: options, convertedString: nil, usedLossyConversion: nil)
+        guard raw != 0 else { return nil }
+        return candidates.first { $0.encoding.rawValue == raw }
     }
+    #endif
 }

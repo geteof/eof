@@ -79,34 +79,9 @@ final class EncodingTests: XCTestCase {
         XCTAssertNil(TextEncoding.latin1.encode("世界"))
     }
 
-    func testLegacyGuessFromBytes() {
-        // Text encoded elsewhere, so the byte-level guess is also checked where Foundation cannot decode it.
-        let samples: [(String, String)] = [
-            ("gb18030", "d5e2cac7d2bbb8f6bcf2cce5d6d0cec4b5c4cec4b1becec4bcfea3acd3c3c0b4b2e2cad4b1e0c2ebbcecb2e2a1a30ab5dab6fed0d0c4dac8dda1a30a"),
-            ("big5", "b36fac4fa440add3c163c5e9a4a4a4e5aabaa4e5a672c0c9aed7a141a5cea8d3b4fab8d5bd73bd58b0bbb4faa1430a"),
-            ("shift-jis", "82b182ea82cd93fa967b8cea82cc8365834c83588367837483408343838b82c582b78142834783938352815b836882cc83658358836781420a"),
-            ("euc-kr", "c0ccb0cdc0ba20c7d1b1b9beee20c5d8bdbac6ae20c6c4c0cfc0d4b4cfb4d92e20c0cec4dab5f920c5d7bdbac6ae2e0a"),
-            ("euc-jp", "a4b3a4eca4cfc6fccbdcb8eca4cea5c6a5ada5b9a5c8a5d5a5a1a5a4a5eba4c7a4b9a1a3b4c1bbfaa4e2beafa4b7b4dea4dfa4dea4b9a1a30a"),
-            ("gb18030", "b2bbb3c9a3acb0d1b4f3bcd2b6bcbdd0b3f6c0b4a1a30a"),
-        ]
-        for (expected, hex) in samples {
-            var bytes = [UInt8]()
-            var index = hex.startIndex
-            while index < hex.endIndex {
-                let next = hex.index(index, offsetBy: 2)
-                bytes.append(UInt8(hex[index..<next], radix: 16)!)
-                index = next
-            }
-            XCTAssertEqual(TextEncoding.legacyGuess(Data(bytes))?.id, expected)
-        }
-        XCTAssertNil(TextEncoding.legacyGuess(Data([0x63, 0x61, 0x66, 0xE9, 0x0A])))
-        XCTAssertNil(TextEncoding.legacyGuess(Data("na\u{EF}ve fa\u{E7}ade d\u{E9}j\u{E0} vu".unicodeScalars.map { UInt8($0.value) })))
-    }
-
     #if canImport(Darwin)
-    /// Not an assertion: prints how Foundation's own detector does on the same samples, so the
-    /// hand-written scorer can be compared with it. Lines start with "ENCODING-COMPARE".
-    func testCompareWithSystemDetection() {
+    /// Legacy encodings are detected by Foundation, which only does this on Apple platforms.
+    func testLegacyEncodingDetection() throws {
         let samples: [(String, TextEncoding, String)] = [
             ("zh-long", .gb18030, "这是一个简体中文的文本文件，用来测试编码检测。\n第二行内容。\n"),
             ("zh-short", .gb18030, "不成，把大家都叫出来。\n"),
@@ -123,28 +98,22 @@ final class EncodingTests: XCTestCase {
             ("cp1252", .windows1252, "“smart quotes” — and a dash…\n"),
             ("cp1251", .windows1251, "Привет, это текстовый файл.\n"),
         ]
-        let suggested = [TextEncoding.gb18030, .big5, .shiftJIS, .eucJP, .eucKR, .windows1252, .windows1251].map { NSNumber(value: $0.encoding.rawValue) }
-        var oursRight = 0, systemRight = 0, hintedRight = 0
         for (label, encoding, text) in samples {
-            guard let data = encoding.encode(text) else {
-                print("ENCODING-COMPARE \(label): could not encode sample")
-                continue
-            }
-            let ours = TextEncoding.detect(data)
-            var converted: NSString?
-            var lossy: ObjCBool = false
-            let plain = NSString.stringEncoding(for: data, encodingOptions: [.allowLossyKey: false], convertedString: &converted, usedLossyConversion: &lossy)
-            let plainOK = (converted as String?) == text
-            var hintedString: NSString?
-            let hinted = NSString.stringEncoding(for: data, encodingOptions: [.allowLossyKey: false, .suggestedEncodingsKey: suggested, .useOnlySuggestedEncodingsKey: true], convertedString: &hintedString, usedLossyConversion: &lossy)
-            let hintedOK = (hintedString as String?) == text
-            let oursOK = ours?.text == text
-            oursRight += oursOK ? 1 : 0
-            systemRight += plainOK ? 1 : 0
-            hintedRight += hintedOK ? 1 : 0
-            print("ENCODING-COMPARE \(label) [\(encoding.id)]: ours=\(ours?.encoding.id ?? "nil") \(oursOK ? "OK" : "WRONG") | system=\(String.localizedName(of: String.Encoding(rawValue: plain))) \(plainOK ? "OK" : "WRONG") | system+hints=\(String.localizedName(of: String.Encoding(rawValue: hinted))) \(hintedOK ? "OK" : "WRONG")")
+            let data = try XCTUnwrap(encoding.encode(text), label)
+            let detected = try XCTUnwrap(TextEncoding.detect(data), label)
+            XCTAssertEqual(detected.text, text, "\(label): detected \(detected.encoding.id)")
+            // Saving with the detected encoding must give back the original bytes.
+            XCTAssertEqual(detected.encoding.encode(detected.text), data, label)
         }
-        print("ENCODING-COMPARE total of \(samples.count): ours=\(oursRight) system=\(systemRight) system+hints=\(hintedRight)")
+    }
+
+    func testLegacyDetectionOfLargeInput() throws {
+        let line = "这是一行用来填充的简体中文文本，后面还有很多行。\n"
+        let data = try XCTUnwrap(TextEncoding.gb18030.encode(String(repeating: line, count: 12_000)))
+        XCTAssertGreaterThan(data.count, 500_000)
+        let detected = try XCTUnwrap(TextEncoding.detect(data))
+        XCTAssertEqual(detected.encoding, .gb18030)
+        XCTAssertTrue(detected.text.hasPrefix(line))
     }
 
     func testLegacyCJKRoundTrip() throws {

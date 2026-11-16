@@ -119,6 +119,9 @@ final class EditorController: NSObject, TextViewDelegate, EditorKeyCommands {
             text: text, language: document.language, filename: document.name,
             highlighting: document.highlightingEnabled, theme: theme
         ))
+        // Start with the caret on the first line; without a selection Runestone reports the end of the text.
+        textView.selectedRange = NSRange(location: 0, length: 0)
+        selectionDidChange()
     }
 
     private func load(_ state: TextViewState) {
@@ -192,6 +195,7 @@ final class EditorController: NSObject, TextViewDelegate, EditorKeyCommands {
         }
         textView.selectedRange = NSRange(location: location, length: 0)
         textView.scrollRangeToVisible(textView.selectedRange)
+        selectionDidChange()
     }
 
     func select(_ range: NSRange, focus: Bool = false) {
@@ -211,6 +215,7 @@ final class EditorController: NSObject, TextViewDelegate, EditorKeyCommands {
     func goToLine(_ line: Int, column: Int = 1) {
         let index = max(0, min(line, lineCount) - 1)
         textView.goToLine(index)
+        defer { selectionDidChange() }
         guard column > 1, let start = textView.location(at: TextLocation(lineNumber: index, column: 0)) else { return }
         let nextLine = textView.location(at: TextLocation(lineNumber: index + 1, column: 0))
         let end = nextLine.map { $0 - 1 } ?? length
@@ -227,6 +232,7 @@ final class EditorController: NSObject, TextViewDelegate, EditorKeyCommands {
 
     func selectAll() {
         textView.selectedRange = NSRange(location: 0, length: length)
+        selectionDidChange()
     }
 
     // MARK: - Appearance
