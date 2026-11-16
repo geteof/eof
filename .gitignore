@@ -9,3 +9,4 @@ large.log
 medium.swift
 *.bundle
 App/Info.plist
+EOFCore/Package.resolved

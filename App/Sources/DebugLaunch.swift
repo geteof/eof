@@ -194,7 +194,6 @@ extension DebugLaunch {
         } else {
             lines.append("editor view is not in a window")
         }
-        lines.append("screens: " + UIScreen.screens.map { rect($0.bounds) }.joined(separator: " "))
         let output = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0].appendingPathComponent("layout.txt")
         try? lines.joined(separator: "\n").write(to: output, atomically: true, encoding: .utf8)
     }
