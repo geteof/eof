@@ -4,19 +4,32 @@ import UniformTypeIdentifiers
 
 /// Which files are shown by the system previewer instead of being read as text.
 enum FileKind {
-    /// Types that are never text. They are not read into memory just to find that out.
-    static func isMedia(_ url: URL) -> Bool {
-        guard let type = UTType(filenameExtension: url.pathExtension.lowercased()) else { return false }
-        if type.conforms(to: .svg) { return false } // SVG is XML: it opens in the editor, with a preview
-        let families: [UTType] = [.image, .audiovisualContent, .pdf, .archive, .spreadsheet, .presentation, .font, .threeDContent, .rtfd, .epub, .diskImage, .executable]
-        if families.contains(where: { type.conforms(to: $0) }) { return true }
-        // Word-processing documents have no common parent type.
-        let documents = ["doc", "docx", "pages", "numbers", "key", "xls", "xlsx", "ppt", "pptx", "odt", "ods", "odp", "rtf"]
-        return documents.contains(url.pathExtension.lowercased())
+    /// Types Quick Look draws real content for.
+    private static let viewable: [UTType] = [.image, .audiovisualContent, .pdf, .spreadsheet, .presentation, .threeDContent, .rtfd, .epub]
+    /// Types that are binary but have nothing to look at: these go to the hex view.
+    private static let opaque: [UTType] = [.archive, .font, .diskImage, .executable]
+    /// Word-processing documents have no common parent type.
+    private static let documentExtensions: Set<String> = ["doc", "docx", "pages", "numbers", "key", "xls", "xlsx", "ppt", "pptx", "odt", "ods", "odp", "rtf"]
+
+    private static func type(_ url: URL) -> UTType? {
+        UTType(filenameExtension: url.pathExtension.lowercased())
     }
 
+    /// Types that are never text. They are not read into memory just to find that out.
+    static func isMedia(_ url: URL) -> Bool {
+        if documentExtensions.contains(url.pathExtension.lowercased()) { return true }
+        guard let type = type(url) else { return false }
+        if type.conforms(to: .svg) { return false } // SVG is XML: it opens in the editor, with a preview
+        return (viewable + opaque).contains { type.conforms(to: $0) }
+    }
+
+    /// True when the system previewer shows the file's content. Quick Look accepts nearly every
+    /// file, but for an archive or an unknown binary it only draws an icon and a name, so the
+    /// decision is made from the type first.
     static func canPreview(_ url: URL) -> Bool {
-        QLPreviewController.canPreview(url as NSURL)
+        let known = documentExtensions.contains(url.pathExtension.lowercased())
+            || (type(url).map { type in !type.conforms(to: .svg) && viewable.contains { type.conforms(to: $0) } } ?? false)
+        return known && QLPreviewController.canPreview(url as NSURL)
     }
 
     /// "PNG image", "PDF document"… for the status bar.
