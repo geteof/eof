@@ -10,28 +10,15 @@ struct SidebarView: View {
 
     var body: some View {
         List {
-            if model.documents.isEmpty, model.folder == nil {
-                Section {
-                    Button {
-                        model.newDocument()
-                    } label: {
-                        Label("New File", systemImage: "square.and.pencil")
-                    }
-                    Button {
-                        startImport(.files)
-                    } label: {
-                        Label("Open File…", systemImage: "doc")
-                    }
-                    Button {
-                        startImport(.folder)
-                    } label: {
-                        Label("Open Folder…", systemImage: "folder")
-                    }
-                }
+            Section {
+                QuickActions(startImport: startImport)
+                    .listRowInsets(EdgeInsets(top: 4, leading: 12, bottom: 4, trailing: 12))
+                    .listRowBackground(Color.clear)
+                    .listRowSeparator(.hidden)
             }
 
             if !model.documents.isEmpty {
-                Section("Open") {
+                Section("Open Documents") {
                     ForEach(model.documents) { document in
                         OpenDocumentRow(document: document, isActive: document.id == model.activeID)
                     }
@@ -74,6 +61,26 @@ struct SidebarView: View {
                 }
             }
 
+            if model.folder == nil {
+                Section("Folder") {
+                    Button {
+                        startImport(.folder)
+                    } label: {
+                        Label {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Open Folder…")
+                                    .foregroundStyle(.primary)
+                                Text("Browse and search a whole project.")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                        } icon: {
+                            Image(systemName: "folder.badge.plus")
+                        }
+                    }
+                }
+            }
+
             let recents = model.recents.filter { item in
                 !model.documents.contains { $0.url?.standardizedFileURL.path == item.path } && model.folder?.url.standardizedFileURL.path != item.path
             }
@@ -96,6 +103,7 @@ struct SidebarView: View {
                                 }
                             } icon: {
                                 Image(systemName: item.isFolder ? "folder" : FileNode.symbol(for: item.name))
+                                    .foregroundStyle(item.isFolder ? Color.accentColor : FileNode.tint(for: item.name))
                             }
                         }
                         .foregroundStyle(.primary)
@@ -165,30 +173,64 @@ private struct OpenDocumentRow: View {
     @ObservedObject var document: EditorDocument
     let isActive: Bool
 
+    private var detail: String {
+        let place = document.url.map(FileAccess.displayLocation) ?? String(localized: "Not Saved")
+        return document.isBinary ? place : "\(document.language.name) · \(place)"
+    }
+
     var body: some View {
-        Button {
-            model.activate(document)
-        } label: {
-            Label {
-                HStack(spacing: 6) {
-                    Text(verbatim: document.name)
-                        .lineLimit(1)
-                        .truncationMode(.middle)
-                        .fontWeight(isActive ? .semibold : .regular)
-                    if document.isDirty {
-                        Circle()
-                            .fill(.tint)
-                            .frame(width: 7, height: 7)
-                            .accessibilityLabel(Text("Edited"))
+        HStack(spacing: 4) {
+            Button {
+                model.activate(document)
+            } label: {
+                Label {
+                    VStack(alignment: .leading, spacing: 2) {
+                        HStack(spacing: 6) {
+                            Text(verbatim: document.name)
+                                .lineLimit(1)
+                                .truncationMode(.middle)
+                                .fontWeight(isActive ? .semibold : .regular)
+                                .foregroundStyle(.primary)
+                            if document.isDirty {
+                                Circle()
+                                    .fill(.tint)
+                                    .frame(width: 7, height: 7)
+                                    .accessibilityLabel(Text("Edited"))
+                            }
+                        }
+                        Text(verbatim: detail)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                            .truncationMode(.head)
                     }
-                    Spacer(minLength: 0)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                } icon: {
+                    Image(systemName: document.isBinary ? "number" : FileNode.symbol(for: document.name))
+                        .foregroundStyle(document.isBinary ? Color.secondary : FileNode.tint(for: document.name))
                 }
-            } icon: {
-                Image(systemName: document.isBinary ? "number" : FileNode.symbol(for: document.name))
+                .contentShape(Rectangle())
             }
+            .buttonStyle(.plain)
+            Button {
+                model.requestClose(document)
+            } label: {
+                Image(systemName: "xmark")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 28, height: 28)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.borderless)
+            .accessibilityLabel(Text("Close"))
         }
-        .foregroundStyle(.primary)
-        .listRowBackground(isActive ? Color.accentColor.opacity(0.14) : nil)
+        // An inset, rounded highlight like the system's own sidebar selection.
+        .listRowBackground(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .fill(isActive ? Color.accentColor.opacity(0.18) : Color.clear)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 1)
+        )
         .swipeActions {
             Button {
                 model.requestClose(document)
@@ -212,6 +254,41 @@ private struct OpenDocumentRow: View {
                 ShareLink(item: url)
             }
         }
+    }
+}
+
+/// New, open file and open folder as three large targets at the top of the sidebar.
+private struct QuickActions: View {
+    @EnvironmentObject private var model: AppModel
+    let startImport: (ImportKind) -> Void
+
+    var body: some View {
+        HStack(spacing: 8) {
+            tile("New File", systemImage: "square.and.pencil") { model.newDocument() }
+            tile("Open File", systemImage: "doc") { startImport(.files) }
+            tile("Open Folder", systemImage: "folder") { startImport(.folder) }
+        }
+    }
+
+    private func tile(_ title: LocalizedStringKey, systemImage: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            VStack(spacing: 6) {
+                Image(systemName: systemImage)
+                    .font(.system(size: 19, weight: .medium))
+                    .foregroundStyle(.tint)
+                    .frame(height: 24)
+                Text(title)
+                    .font(.caption)
+                    .foregroundStyle(.primary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 12)
+            .background(Color(uiColor: .tertiarySystemFill), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .contentShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        }
+        .buttonStyle(.plain)
     }
 }
 
@@ -272,6 +349,7 @@ private struct FileNodeRow: View {
                             .truncationMode(.middle)
                     } icon: {
                         Image(systemName: FileNode.symbol(for: node.name))
+                            .foregroundStyle(FileNode.tint(for: node.name))
                     }
                 }
                 .foregroundStyle(.primary)
@@ -380,6 +458,21 @@ private struct FileNodeRow: View {
 }
 
 extension FileNode {
+    /// A quiet colour per kind of file, so a list of names can be scanned by type.
+    static func tint(for name: String) -> Color {
+        switch symbol(for: name) {
+        case "doc.plaintext": return .blue
+        case "list.bullet.rectangle": return .orange
+        case "globe": return .teal
+        case "terminal": return .green
+        case "swift": return .orange
+        case "chevron.left.forwardslash.chevron.right": return .indigo
+        case "plusminus": return .pink
+        case "tablecells": return .green
+        default: return .secondary
+        }
+    }
+
     /// Re-reads this folder and every expanded folder below it.
     func reloadExpanded() {
         guard isDirectory, children != nil else { return }

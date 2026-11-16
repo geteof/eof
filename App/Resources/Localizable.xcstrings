@@ -134,6 +134,16 @@
         }
       }
     },
+    "Browse and search a whole project.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "浏览并搜索整个项目。"
+          }
+        }
+      }
+    },
     "Cancel": {
       "localizations": {
         "zh-Hans": {
@@ -647,6 +657,16 @@
         }
       }
     },
+    "Folder": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "文件夹"
+          }
+        }
+      }
+    },
     "Folder Actions": {
       "localizations": {
         "zh-Hans": {
@@ -1137,6 +1157,16 @@
         }
       }
     },
+    "Not Saved": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "尚未保存"
+          }
+        }
+      }
+    },
     "Nothing to list in this file.": {
       "localizations": {
         "zh-Hans": {
@@ -1187,12 +1217,32 @@
         }
       }
     },
+    "Open File": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "打开文件"
+          }
+        }
+      }
+    },
     "Open File…": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "打开文件…"
+          }
+        }
+      }
+    },
+    "Open Folder": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "打开文件夹"
           }
         }
       }
