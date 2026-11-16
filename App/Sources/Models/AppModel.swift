@@ -93,6 +93,8 @@ final class AppModel: ObservableObject {
     @Published var loadingName: String?
     /// A document whose closing needs the user's confirmation because text would be lost.
     @Published var pendingClose: EditorDocument?
+    /// The full-screen file browser for the open folder.
+    @Published var showBrowser = false
     /// A request for the editor screen to act on the active document (from menus and shortcuts).
     let commands = PassthroughSubject<EditorCommand, Never>()
 
@@ -226,12 +228,12 @@ final class AppModel: ObservableObject {
 
     // MARK: - Folder
 
-    func openFolder(_ url: URL) {
+    /// Makes `url` the project folder. `browse` also brings up the file browser on it.
+    func openFolder(_ url: URL, browse: Bool = true) {
         closeFolder()
         folderIsScoped = url.startAccessingSecurityScopedResource()
-        let node = FileNode(url: url, isDirectory: true)
-        node.isExpanded = true
-        folder = node
+        folder = FileNode(url: url, isDirectory: true)
+        showBrowser = browse
         remember(url, isFolder: true)
         saveSession()
     }
@@ -243,6 +245,7 @@ final class AppModel: ObservableObject {
         let inUse = documents.contains { $0.url?.standardizedFileURL.path.hasPrefix(prefix) ?? false }
         if folderIsScoped, !inUse { current.url.stopAccessingSecurityScopedResource() }
         folderIsScoped = false
+        showBrowser = false
         folder = nil
         saveSession()
     }
@@ -322,7 +325,7 @@ final class AppModel: ObservableObject {
         didRestore = true
         guard let data = defaults.data(forKey: "session"), let session = try? JSONDecoder().decode(Session.self, from: data) else { return }
         if let bookmark = session.folder, let url = FileAccess.resolve(bookmark), FileAccess.exists(url) {
-            openFolder(url)
+            openFolder(url, browse: false)
         }
         let fallbacks = (settings.defaultEncoding, settings.defaultLineEnding)
         var restored: [EditorDocument] = []
@@ -354,5 +357,5 @@ final class AppModel: ObservableObject {
 /// Actions that menus and keyboard shortcuts send to the visible editor.
 enum EditorCommand {
     case find, replace, findInFolder, goToLine, togglePreview, save, saveAs, outline
-    case openFile, openFolder, closeDocument
+    case openFile, openFolder, closeDocument, browseFiles
 }

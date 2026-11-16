@@ -1,41 +1,47 @@
 import SwiftUI
 import EOFCore
 
-/// Read-only hex dump for files that are not text.
+/// Read-only hex dump for files that are not text. Rows hold sixteen bytes where they fit and
+/// eight on a narrow screen, so nothing runs off the side.
 struct HexView: View {
     let data: Data
 
+    // 12 pt monospaced characters are about 7.3 pt wide.
+    private static let characterWidth: CGFloat = 7.3
+    private static let spacing: CGFloat = 12
+    private static let margin: CGFloat = 14
+
+    private static func width(bytesPerRow: Int) -> CGFloat {
+        CGFloat(8 + HexDump.hexColumnWidth(bytesPerRow: bytesPerRow) + bytesPerRow) * characterWidth + spacing * 2 + margin * 2
+    }
+
     var body: some View {
-        let rows = HexDump.rowCount(for: data.count)
-        if rows == 0 {
+        if data.isEmpty {
             ContentUnavailableView("Empty File", systemImage: "doc")
         } else {
-            ScrollView(.horizontal) {
+            GeometryReader { proxy in
+                let bytesPerRow = proxy.size.width >= HexView.width(bytesPerRow: 16) ? 16 : 8
+                let rows = HexDump.rowCount(for: data.count, bytesPerRow: bytesPerRow)
                 List(0..<rows, id: \.self) { index in
-                    let row = HexDump.row(index, of: data)
-                    HStack(spacing: 14) {
+                    let row = HexDump.row(index, of: data, bytesPerRow: bytesPerRow)
+                    HStack(spacing: HexView.spacing) {
                         Text(verbatim: row.offset)
                             .foregroundStyle(.secondary)
                         Text(verbatim: row.hex)
-                            .frame(width: hexWidth, alignment: .leading)
+                            .frame(width: CGFloat(HexDump.hexColumnWidth(bytesPerRow: bytesPerRow)) * HexView.characterWidth + 2, alignment: .leading)
                         Text(verbatim: row.ascii)
                             .foregroundStyle(.secondary)
+                        Spacer(minLength: 0)
                     }
                     .font(.system(size: 12, design: .monospaced))
                     .lineLimit(1)
-                    .fixedSize()
-                    .listRowInsets(EdgeInsets(top: 2, leading: 14, bottom: 2, trailing: 14))
+                    .listRowInsets(EdgeInsets(top: 2, leading: HexView.margin, bottom: 2, trailing: HexView.margin))
                     .listRowSeparator(.hidden)
                 }
                 .listStyle(.plain)
                 .environment(\.defaultMinListRowHeight, 18)
-                .frame(width: listWidth)
+                .id(bytesPerRow)
             }
-            .scrollBounceBehavior(.basedOnSize, axes: .horizontal)
         }
     }
-
-    // 12 pt monospaced digits are about 7.3 pt wide.
-    private var hexWidth: CGFloat { 49 * 7.3 }
-    private var listWidth: CGFloat { (8 + 49 + 16) * 7.3 + 14 * 4 }
 }

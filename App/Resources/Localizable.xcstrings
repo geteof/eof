@@ -1,12 +1,52 @@
 {
   "sourceLanguage": "en",
   "strings": {
+    " copy": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": " 副本"
+          }
+        }
+      }
+    },
+    " copy %lld": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": " 副本 %lld"
+          }
+        }
+      }
+    },
+    "%@ bytes": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 字节"
+          }
+        }
+      }
+    },
     "%lld Spaces": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "%lld 个空格"
+          }
+        }
+      }
+    },
+    "%lld items": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld 项"
           }
         }
       }
@@ -130,6 +170,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "二进制"
+          }
+        }
+      }
+    },
+    "Browse Files": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "浏览文件"
           }
         }
       }
@@ -294,6 +344,26 @@
         }
       }
     },
+    "Contains": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "包含"
+          }
+        }
+      }
+    },
+    "Copy Name": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "拷贝名称"
+          }
+        }
+      }
+    },
     "Could Not Complete": {
       "localizations": {
         "zh-Hans": {
@@ -354,6 +424,16 @@
         }
       }
     },
+    "Create a file here, or go back and pick another folder.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在这里新建文件，或返回选择其他文件夹。"
+          }
+        }
+      }
+    },
     "Create a file, or open one from Files, iCloud Drive or another app.": {
       "localizations": {
         "zh-Hans": {
@@ -364,12 +444,32 @@
         }
       }
     },
+    "Created": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "创建时间"
+          }
+        }
+      }
+    },
     "Dark Theme": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "深色主题"
+          }
+        }
+      }
+    },
+    "Date Modified": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "修改日期"
           }
         }
       }
@@ -400,6 +500,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "删除“%@”？"
+          }
+        }
+      }
+    },
+    "Delete?": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "删除？"
           }
         }
       }
@@ -460,6 +570,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "完成"
+          }
+        }
+      }
+    },
+    "Duplicate": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "复制"
           }
         }
       }
@@ -547,6 +667,16 @@
         }
       }
     },
+    "Extension": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "扩展名"
+          }
+        }
+      }
+    },
     "File": {
       "localizations": {
         "zh-Hans": {
@@ -593,6 +723,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "尚未指定位置的文件会作为草稿保留，直到你保存它们。"
+          }
+        }
+      }
+    },
+    "Filter by Name": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "按名称筛选"
           }
         }
       }
@@ -677,6 +817,16 @@
         }
       }
     },
+    "Folder Info": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "文件夹简介"
+          }
+        }
+      }
+    },
     "Font": {
       "localizations": {
         "zh-Hans": {
@@ -687,12 +837,32 @@
         }
       }
     },
+    "Font Size": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "字号"
+          }
+        }
+      }
+    },
     "Format JSON": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "格式化 JSON"
+          }
+        }
+      }
+    },
+    "Get Info": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "显示简介"
           }
         }
       }
@@ -797,6 +967,16 @@
         }
       }
     },
+    "Info": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "简介"
+          }
+        }
+      }
+    },
     "Join Lines": {
       "localizations": {
         "zh-Hans": {
@@ -823,6 +1003,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "键盘符号栏"
+          }
+        }
+      }
+    },
+    "Kind": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "种类"
           }
         }
       }
@@ -997,6 +1187,16 @@
         }
       }
     },
+    "Modified": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "修改时间"
+          }
+        }
+      }
+    },
     "More": {
       "localizations": {
         "zh-Hans": {
@@ -1147,6 +1347,16 @@
         }
       }
     },
+    "No Preview": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无法预览"
+          }
+        }
+      }
+    },
     "No Results": {
       "localizations": {
         "zh-Hans": {
@@ -1163,6 +1373,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "没有符号"
+          }
+        }
+      }
+    },
+    "None": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无"
           }
         }
       }
@@ -1263,6 +1483,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "打开文件夹…"
+          }
+        }
+      }
+    },
+    "Open in Editor": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在编辑器中打开"
           }
         }
       }
@@ -1577,6 +1807,16 @@
         }
       }
     },
+    "Select a File": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "选择一个文件"
+          }
+        }
+      }
+    },
     "Selection": {
       "localizations": {
         "zh-Hans": {
@@ -1622,7 +1862,7 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "字号"
+            "value": "大小"
           }
         }
       }
@@ -1643,6 +1883,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "部分字符无法以 %@ 编码保存。请选择其他编码，例如 UTF-8。"
+          }
+        }
+      }
+    },
+    "Sort By": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "排序方式"
           }
         }
       }
@@ -1753,6 +2003,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "制表符：%lld"
+          }
+        }
+      }
+    },
+    "Tap a file to look at it here. Double-tap to open it in the editor.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "轻点文件可在这里查看，连点两下在编辑器中打开。"
           }
         }
       }
@@ -1987,6 +2247,16 @@
         }
       }
     },
+    "Where": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "位置"
+          }
+        }
+      }
+    },
     "Whole Words": {
       "localizations": {
         "zh-Hans": {
@@ -2063,6 +2333,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "“%@”已被移动或删除。"
+          }
+        }
+      }
+    },
+    "“%@” will be deleted. This cannot be undone.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "将删除“%@”。此操作无法撤销。"
           }
         }
       }

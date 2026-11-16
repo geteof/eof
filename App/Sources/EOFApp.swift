@@ -37,6 +37,8 @@ struct EOFApp: App {
                     .keyboardShortcut("o")
                 Button("Open Folder…") { model.commands.send(.openFolder) }
                     .keyboardShortcut("o", modifiers: [.command, .shift])
+                Button("Browse Files") { model.commands.send(.browseFiles) }
+                    .keyboardShortcut("b", modifiers: [.command, .shift])
             }
             CommandGroup(replacing: .saveItem) {
                 Button("Save") { model.commands.send(.save) }

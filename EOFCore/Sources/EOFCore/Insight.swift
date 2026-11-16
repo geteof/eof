@@ -237,7 +237,7 @@ public enum LineDiff {
 public enum HexDump {
     public static let bytesPerRow = 16
 
-    public static func rowCount(for byteCount: Int) -> Int {
+    public static func rowCount(for byteCount: Int, bytesPerRow: Int = HexDump.bytesPerRow) -> Int {
         (byteCount + bytesPerRow - 1) / bytesPerRow
     }
 
@@ -249,7 +249,13 @@ public enum HexDump {
 
     private static let digits = Array("0123456789ABCDEF")
 
-    public static func row(_ index: Int, of data: Data) -> Row {
+    /// Characters in the hex column of a full row: two per byte, a space between bytes, and one
+    /// extra space after every eighth byte.
+    public static func hexColumnWidth(bytesPerRow: Int) -> Int {
+        bytesPerRow * 3 - 1 + max(0, (bytesPerRow - 1) / 8)
+    }
+
+    public static func row(_ index: Int, of data: Data, bytesPerRow: Int = HexDump.bytesPerRow) -> Row {
         let start = index * bytesPerRow
         let end = min(start + bytesPerRow, data.count)
         var hex = ""
@@ -259,7 +265,7 @@ public enum HexDump {
             let base = data.startIndex
             for k in start..<end {
                 let byte = data[base + k]
-                if k > start { hex.append((k - start) == 8 ? "  " : " ") }
+                if k > start { hex.append((k - start) % 8 == 0 ? "  " : " ") }
                 hex.append(digits[Int(byte >> 4)])
                 hex.append(digits[Int(byte & 0x0F)])
                 ascii.append(byte >= 32 && byte < 127 ? Character(UnicodeScalar(byte)) : "·")

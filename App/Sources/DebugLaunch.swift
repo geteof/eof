@@ -11,6 +11,8 @@ import SwiftUI
 ///     -line <n>         put the caret on this line
 ///     -readonly         open in read-only mode
 ///     -selftest         drive the editor through its commands and write Documents/selftest.txt
+///     -browse [subfolder]  show the file browser on the folder, optionally inside a subfolder
+///     -peek <name>      select this file in the browser's preview pane (wide screens)
 ///     -layoutreport     write window, safe-area and bar geometry to Documents/layout.txt
 enum DebugLaunch {
     private static let arguments = ProcessInfo.processInfo.arguments
@@ -30,8 +32,22 @@ enum DebugLaunch {
     }
 
     static func open(in model: AppModel) {
-        if let folder = values("-folder").first { model.openFolder(resolve(folder)) }
+        if let folder = values("-folder").first { model.openFolder(resolve(folder), browse: arguments.contains("-browse")) }
         for path in values("-open") { model.open(resolve(path)) }
+    }
+
+    static func applyBrowser(root: URL, path: inout [URL], selection: inout FileEntry?) {
+        guard arguments.contains("-browse") else { return }
+        var folder = root
+        if let sub = values("-browse").first, !sub.hasPrefix("-") {
+            for component in sub.split(separator: "/") {
+                folder = folder.appendingPathComponent(String(component))
+                path.append(folder)
+            }
+        }
+        if let name = values("-peek").first {
+            selection = FileEntry.load(folder.appendingPathComponent(name))
+        }
     }
 
     static func apply(to document: EditorDocument, showFind: inout Bool, findWithReplace: inout Bool, showPreview: inout Bool, sheet: inout EditorSheet?) {

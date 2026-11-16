@@ -42,6 +42,13 @@ struct RootView: View {
         .sheet(isPresented: $showSettings) {
             SettingsView()
         }
+        .fullScreenCover(isPresented: $model.showBrowser) {
+            if let folder = model.folder {
+                BrowserView(root: folder.url)
+                    .environmentObject(model)
+                    .environmentObject(settings)
+            }
+        }
         .alert(item: $model.alert) { alert in
             Alert(title: Text(alert.title), message: Text(alert.message), dismissButton: .default(Text("OK")))
         }
@@ -75,6 +82,7 @@ struct RootView: View {
             switch command {
             case .openFile: startImport(.files)
             case .openFolder: startImport(.folder)
+            case .browseFiles: if model.folder != nil { model.showBrowser = true }
             default: break
             }
         }

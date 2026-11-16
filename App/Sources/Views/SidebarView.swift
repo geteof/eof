@@ -26,37 +26,63 @@ struct SidebarView: View {
             }
 
             if let folder = model.folder {
-                Section {
-                    FolderContents(node: folder)
-                } header: {
-                    HStack {
-                        Text(verbatim: folder.name)
-                        Spacer()
-                        Menu {
-                            Button {
-                                showFolderSearch = true
-                            } label: {
-                                Label("Find in Folder…", systemImage: "magnifyingglass")
+                Section("Folder") {
+                    Button {
+                        model.showBrowser = true
+                    } label: {
+                        HStack(spacing: 4) {
+                            Label {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(verbatim: folder.name)
+                                        .font(.callout)
+                                        .foregroundStyle(.primary)
+                                        .lineLimit(2)
+                                        .multilineTextAlignment(.leading)
+                                    Text("Browse Files")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+                            } icon: {
+                                FileIcon(name: folder.name, isFolder: true)
                             }
-                            Button {
-                                folder.reload()
-                            } label: {
-                                Label("Refresh", systemImage: "arrow.clockwise")
-                            }
-                            Toggle(isOn: $settings.showHiddenFiles) {
-                                Label("Show Hidden Files", systemImage: "eye")
-                            }
-                            Divider()
-                            Button(role: .destructive) {
-                                model.closeFolder()
-                            } label: {
-                                Label("Close Folder", systemImage: "xmark")
-                            }
-                        } label: {
-                            Image(systemName: "ellipsis.circle")
-                                .imageScale(.large)
+                            Spacer(minLength: 0)
+                            Image(systemName: "chevron.right")
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(.tertiary)
                         }
-                        .accessibilityLabel(Text("Folder Actions"))
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .contextMenu {
+                        Button {
+                            showFolderSearch = true
+                        } label: {
+                            Label("Find in Folder…", systemImage: "magnifyingglass")
+                        }
+                        Button(role: .destructive) {
+                            model.closeFolder()
+                        } label: {
+                            Label("Close Folder", systemImage: "xmark")
+                        }
+                    }
+                    .swipeActions {
+                        Button {
+                            model.closeFolder()
+                        } label: {
+                            Label("Close Folder", systemImage: "xmark")
+                        }
+                        .tint(.gray)
+                    }
+                    Button {
+                        showFolderSearch = true
+                    } label: {
+                        Label {
+                            Text("Find in Folder…")
+                                .font(.callout)
+                                .foregroundStyle(.primary)
+                        } icon: {
+                            FileIcon(symbol: "magnifyingglass", tint: .gray)
+                        }
                     }
                 }
             }
@@ -159,9 +185,6 @@ struct SidebarView: View {
         }
         .sheet(isPresented: $showFolderSearch) {
             FolderSearchView()
-        }
-        .onChange(of: settings.showHiddenFiles) { _, _ in
-            model.folder?.reloadExpanded()
         }
         .onReceive(model.commands) { command in
             if case .findInFolder = command, model.folder != nil { showFolderSearch = true }
@@ -320,176 +343,6 @@ private struct QuickActions: View {
     }
 }
 
-/// The children of a folder node, loaded on demand.
-private struct FolderContents: View {
-    @ObservedObject var node: FileNode
-
-    var body: some View {
-        if let children = node.children {
-            if children.isEmpty {
-                Text("Empty Folder")
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
-            } else {
-                ForEach(children) { child in
-                    FileNodeRow(node: child, parent: node)
-                }
-            }
-        } else {
-            ProgressView()
-                .onAppear { node.reload() }
-        }
-    }
-}
-
-private struct FileNodeRow: View {
-    @EnvironmentObject private var model: AppModel
-    @ObservedObject var node: FileNode
-    let parent: FileNode
-    @State private var prompt: NamePrompt?
-    @State private var name = ""
-    @State private var confirmDelete = false
-
-    private enum NamePrompt: Identifiable {
-        case newFile, newFolder, rename
-        var id: Int { hashValue }
-    }
-
-    var body: some View {
-        Group {
-            if node.isDirectory {
-                DisclosureGroup(isExpanded: $node.isExpanded) {
-                    FolderContents(node: node)
-                } label: {
-                    Label {
-                        Text(verbatim: node.name)
-                            .font(.callout)
-                            .lineLimit(3)
-                            .multilineTextAlignment(.leading)
-                            .truncationMode(.middle)
-                    } icon: {
-                        FileIcon(name: node.name, isFolder: true)
-                    }
-                }
-            } else {
-                Button {
-                    model.open(node.url)
-                } label: {
-                    Label {
-                        Text(verbatim: node.name)
-                            .font(.callout)
-                            .lineLimit(3)
-                            .multilineTextAlignment(.leading)
-                            .truncationMode(.middle)
-                    } icon: {
-                        FileIcon(name: node.name)
-                    }
-                }
-                .foregroundStyle(.primary)
-            }
-        }
-        .contextMenu {
-            if node.isDirectory {
-                Button {
-                    name = ""
-                    prompt = .newFile
-                } label: {
-                    Label("New File…", systemImage: "doc.badge.plus")
-                }
-                Button {
-                    name = ""
-                    prompt = .newFolder
-                } label: {
-                    Label("New Folder…", systemImage: "folder.badge.plus")
-                }
-            }
-            Button {
-                name = node.name
-                prompt = .rename
-            } label: {
-                Label("Rename…", systemImage: "pencil")
-            }
-            ShareLink(item: node.url)
-            Divider()
-            Button(role: .destructive) {
-                confirmDelete = true
-            } label: {
-                Label("Delete", systemImage: "trash")
-            }
-        }
-        .alert(promptTitle, isPresented: Binding(get: { prompt != nil }, set: { if !$0 { prompt = nil } }), presenting: prompt) { kind in
-            TextField("Name", text: $name)
-                .textInputAutocapitalization(.never)
-                .autocorrectionDisabled()
-            Button("Cancel", role: .cancel) {}
-            Button(kind == .rename ? "Rename" : "Create") { perform(kind) }
-        }
-        .confirmationDialog("Delete “\(node.name)”?", isPresented: $confirmDelete, titleVisibility: .visible) {
-            Button("Delete", role: .destructive) { delete() }
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text("This cannot be undone.")
-        }
-    }
-
-    private var promptTitle: LocalizedStringKey {
-        switch prompt {
-        case .newFile: return "New File"
-        case .newFolder: return "New Folder"
-        case .rename: return "Rename"
-        case nil: return ""
-        }
-    }
-
-    private func perform(_ kind: NamePrompt) {
-        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty, !trimmed.contains("/") else { return }
-        let manager = FileManager.default
-        do {
-            switch kind {
-            case .newFile:
-                let target = node.url.appendingPathComponent(trimmed)
-                guard !manager.fileExists(atPath: target.path) else { throw FileAccess.Failure(message: String(localized: "An item with that name already exists.")) }
-                try Data().write(to: target)
-                node.isExpanded = true
-                node.reload()
-                model.open(target)
-            case .newFolder:
-                try manager.createDirectory(at: node.url.appendingPathComponent(trimmed), withIntermediateDirectories: false)
-                node.isExpanded = true
-                node.reload()
-            case .rename:
-                let target = node.url.deletingLastPathComponent().appendingPathComponent(trimmed)
-                guard target != node.url else { return }
-                if let open = model.documents.first(where: { $0.url?.standardizedFileURL == node.url.standardizedFileURL }) {
-                    open.autosave()
-                    try manager.moveItem(at: node.url, to: target)
-                    open.adopt(url: target)
-                    model.saveSession()
-                } else {
-                    try manager.moveItem(at: node.url, to: target)
-                }
-                parent.reload()
-            }
-        } catch {
-            model.alert = AppAlert(title: String(localized: "Could Not Complete"), message: error.localizedDescription)
-        }
-    }
-
-    private func delete() {
-        do {
-            if let open = model.documents.first(where: { $0.url?.standardizedFileURL == node.url.standardizedFileURL }) {
-                open.isDirty = false
-                model.close(open)
-            }
-            try FileManager.default.removeItem(at: node.url)
-            parent.reload()
-        } catch {
-            model.alert = AppAlert(title: String(localized: "Could Not Delete"), message: error.localizedDescription)
-        }
-    }
-}
-
 extension FileNode {
     /// A quiet colour per kind of file, so a list of names can be scanned by type.
     static func tint(for name: String) -> Color {
@@ -507,12 +360,5 @@ extension FileNode {
         case "doc.richtext", "rectangle.on.rectangle": return .red
         default: return .gray
         }
-    }
-
-    /// Re-reads this folder and every expanded folder below it.
-    func reloadExpanded() {
-        guard isDirectory, children != nil else { return }
-        reload()
-        for child in children ?? [] where child.isExpanded { child.reloadExpanded() }
     }
 }

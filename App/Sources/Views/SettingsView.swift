@@ -24,7 +24,7 @@ struct SettingsView: View {
                         ForEach(AppSettings.fonts, id: \.id) { Text(verbatim: $0.name).tag($0.id) }
                     }
                     Stepper(value: $settings.fontSize, in: AppSettings.fontSizeRange, step: 1) {
-                        LabeledContent("Size", value: "\(Int(settings.fontSize)) pt")
+                        LabeledContent("Font Size", value: "\(Int(settings.fontSize)) pt")
                     }
                     Stepper(value: $settings.lineHeight, in: 1.0...2.0, step: 0.1) {
                         LabeledContent("Line Height", value: settings.lineHeight.formatted(.number.precision(.fractionLength(1))))

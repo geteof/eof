@@ -338,6 +338,7 @@ struct FolderSearchView: View {
                         ForEach(file.matches) { match in
                             Button {
                                 model.open(file.url, selecting: match.range)
+                                model.showBrowser = false
                                 dismiss()
                             } label: {
                                 HStack(alignment: .firstTextBaseline, spacing: 10) {

@@ -322,6 +322,14 @@ final class InsightTests: XCTestCase {
         XCTAssertEqual(row.ascii, ">?@ABCDEFGHIJKLM")
         XCTAssertEqual(HexDump.row(1, of: data).offset, "00000010")
         XCTAssertEqual(HexDump.row(1, of: data.dropFirst(2)).hex, "50 51")
+        // Narrow screens show eight bytes per row.
+        XCTAssertEqual(HexDump.rowCount(for: 20, bytesPerRow: 8), 3)
+        XCTAssertEqual(HexDump.row(1, of: data, bytesPerRow: 8).hex, "46 47 48 49 4A 4B 4C 4D")
+        XCTAssertEqual(HexDump.row(1, of: data, bytesPerRow: 8).offset, "00000008")
+        XCTAssertEqual(HexDump.row(2, of: data, bytesPerRow: 8).ascii, "NOPQ")
+        XCTAssertEqual(HexDump.hexColumnWidth(bytesPerRow: 16), 48)
+        XCTAssertEqual(HexDump.hexColumnWidth(bytesPerRow: 8), 23)
+        XCTAssertEqual(HexDump.row(0, of: data).hex.count, HexDump.hexColumnWidth(bytesPerRow: 16))
     }
 
     func testMarkdownHTML() {

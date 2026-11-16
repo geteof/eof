@@ -386,6 +386,13 @@ struct EditorScreen: View {
             } label: {
                 Label("Open File…", systemImage: "doc")
             }
+            if model.folder != nil {
+                Button {
+                    model.showBrowser = true
+                } label: {
+                    Label("Browse Files", systemImage: "folder")
+                }
+            }
             Button(role: .destructive) {
                 model.requestClose(document)
             } label: {
@@ -426,7 +433,7 @@ struct EditorScreen: View {
             if Outline.supports(document.language) { sheet = .outline }
         case .closeDocument:
             model.requestClose(document)
-        case .findInFolder, .openFile, .openFolder:
+        case .findInFolder, .openFile, .openFolder, .browseFiles:
             break
         }
     }
