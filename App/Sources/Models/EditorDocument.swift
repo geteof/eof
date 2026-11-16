@@ -24,6 +24,8 @@ struct LoadedFile {
     enum Content {
         case text(String)
         case binary(Data)
+        /// A picture, PDF, video or similar: shown by the system previewer, never read as text.
+        case media
     }
 
     var content: Content
@@ -46,9 +48,13 @@ struct LoadedFile {
     }
 
     static func load(_ url: URL, encoding forced: TextEncoding? = nil, defaults: (encoding: TextEncoding, lineEnding: LineEnding)) throws -> LoadedFile {
-        let data = try FileAccess.read(url)
         let modified = FileAccess.modificationDate(url)
         let name = url.lastPathComponent
+        if forced == nil, FileKind.isMedia(url) {
+            let size = FileAccess.withAccess(url) { (try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0 }
+            return LoadedFile(content: .media, encoding: defaults.encoding, lineEnding: defaults.lineEnding, mixedLineEndings: false, indent: nil, language: Languages.plain, byteCount: size, modified: modified)
+        }
+        let data = try FileAccess.read(url)
         var detection: TextEncoding.Detection?
         if let forced {
             detection = forced.decode(data).map { TextEncoding.Detection(text: $0, encoding: forced) }
@@ -103,7 +109,17 @@ final class EditorDocument: ObservableObject, Identifiable {
     private var autosaveWork: DispatchWorkItem?
     private let settings = AppSettings.shared
 
-    var isBinary: Bool { binary != nil }
+    /// True for anything that is not text. `binary` holds the bytes once the hex view needs them.
+    @Published private(set) var isBinary = false
+
+    /// Reads the bytes for the hex view. Media files skip this until someone asks for hex.
+    func loadBinaryData() {
+        guard isBinary, binary == nil, let url else { return }
+        DispatchQueue.global(qos: .userInitiated).async {
+            let data = (try? FileAccess.read(url)) ?? Data()
+            DispatchQueue.main.async { self.binary = data }
+        }
+    }
     var isReadOnly: Bool { userReadOnly || isTooLargeToEdit || isBinary }
     var isUntitled: Bool { url == nil }
 
@@ -157,10 +173,17 @@ final class EditorDocument: ObservableObject, Identifiable {
         switch loaded.content {
         case .binary(let data):
             binary = data
+            isBinary = true
+            notice = nil
+            pendingText = ""
+        case .media:
+            binary = nil
+            isBinary = true
             notice = nil
             pendingText = ""
         case .text(let text):
             binary = nil
+            isBinary = false
             let length = (text as NSString).length
             isTooLargeToEdit = length > LoadedFile.editLimit
             highlightingEnabled = length <= LoadedFile.highlightLimit

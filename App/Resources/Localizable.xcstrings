@@ -727,6 +727,16 @@
         }
       }
     },
+    "Hex": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "十六进制"
+          }
+        }
+      }
+    },
     "Hide Keyboard": {
       "localizations": {
         "zh-Hans": {

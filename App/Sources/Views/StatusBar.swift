@@ -15,7 +15,11 @@ struct StatusBar: View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 16) {
                 if document.isBinary {
-                    Text("Binary")
+                    if let url = document.url {
+                        Text(verbatim: FileKind.describe(url))
+                    } else {
+                        Text("Binary")
+                    }
                     Text(verbatim: ByteCountFormatter.string(fromByteCount: Int64(document.byteCount), countStyle: .file))
                 } else {
                     Button(action: goToLine) {

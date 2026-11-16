@@ -52,9 +52,15 @@ final class FileNode: ObservableObject, Identifiable {
         switch language.id {
         case "plain":
             let ext = (name as NSString).pathExtension.lowercased()
-            if ["png", "jpg", "jpeg", "gif", "webp", "heic", "ico", "bmp", "tiff"].contains(ext) { return "photo" }
+            if ["png", "jpg", "jpeg", "gif", "webp", "heic", "heif", "ico", "bmp", "tiff", "tif", "avif"].contains(ext) { return "photo" }
             if ["zip", "gz", "tar", "7z", "rar", "xz", "bz2"].contains(ext) { return "doc.zipper" }
             if ["pdf"].contains(ext) { return "doc.richtext" }
+            if ["mp4", "mov", "m4v", "avi", "mkv", "webm"].contains(ext) { return "film" }
+            if ["mp3", "m4a", "wav", "aac", "flac", "aiff", "ogg"].contains(ext) { return "waveform" }
+            if ["doc", "docx", "pages", "rtf", "odt"].contains(ext) { return "doc.richtext" }
+            if ["xls", "xlsx", "numbers", "ods"].contains(ext) { return "tablecells" }
+            if ["ppt", "pptx", "key", "odp"].contains(ext) { return "rectangle.on.rectangle" }
+            if ["svg"].contains(ext) { return "photo" }
             return "doc.text"
         case "markdown": return "doc.plaintext"
         case "json", "yaml", "toml", "ini", "xml": return "list.bullet.rectangle"

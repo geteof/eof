@@ -206,7 +206,7 @@ private struct OpenDocumentRow: View {
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                 } icon: {
-                    Image(systemName: document.isBinary ? "number" : FileNode.symbol(for: document.name))
+                    Image(systemName: FileNode.symbol(for: document.name))
                         .foregroundStyle(document.isBinary ? Color.secondary : FileNode.tint(for: document.name))
                 }
                 .contentShape(Rectangle())
@@ -469,6 +469,9 @@ extension FileNode {
         case "chevron.left.forwardslash.chevron.right": return .indigo
         case "plusminus": return .pink
         case "tablecells": return .green
+        case "photo": return .purple
+        case "film", "waveform": return .pink
+        case "doc.richtext", "rectangle.on.rectangle": return .red
         default: return .secondary
         }
     }

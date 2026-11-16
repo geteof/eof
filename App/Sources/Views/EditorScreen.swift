@@ -35,6 +35,7 @@ struct EditorScreen: View {
     @State private var showFind = false
     @State private var findWithReplace = false
     @State private var showPreview = false
+    @State private var showHex = false
     @State private var sheet: EditorSheet?
     @State private var showGoToLine = false
     @State private var goToLineText = ""
@@ -137,8 +138,17 @@ struct EditorScreen: View {
 
     @ViewBuilder
     private func content(sideBySide: Bool) -> some View {
-        if let data = document.binary {
-            HexView(data: data)
+        if document.isBinary {
+            if let url = document.url, !showHex, FileKind.canPreview(url) {
+                QuickLookView(url: url)
+                    .id(url)
+            } else if let data = document.binary {
+                HexView(data: data)
+            } else {
+                ProgressView()
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .onAppear { document.loadBinaryData() }
+            }
         } else if showPreview, canPreview {
             if sideBySide {
                 HStack(spacing: 0) {
@@ -180,6 +190,13 @@ struct EditorScreen: View {
                     } label: {
                         Label("Preview", systemImage: showPreview ? "eye.fill" : "eye")
                     }
+                }
+            }
+            if document.isBinary, let url = document.url, FileKind.canPreview(url) {
+                Button {
+                    showHex.toggle()
+                } label: {
+                    Label(showHex ? "Preview" : "Hex", systemImage: showHex ? "eye" : "number")
                 }
             }
             Menu {
