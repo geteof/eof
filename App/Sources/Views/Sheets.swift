@@ -205,7 +205,7 @@ struct CompareSheet: View {
                             Label {
                                 Text(verbatim: other.name).foregroundStyle(.primary)
                             } icon: {
-                                Image(systemName: FileNode.symbol(for: other.name))
+                                FileIcon(name: other.name)
                             }
                         }
                     }

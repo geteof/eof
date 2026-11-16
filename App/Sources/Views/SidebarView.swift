@@ -75,7 +75,7 @@ struct SidebarView: View {
                                     .foregroundStyle(.secondary)
                             }
                         } icon: {
-                            Image(systemName: "folder.badge.plus")
+                            FileIcon(symbol: "folder.badge.plus", tint: .accentColor)
                         }
                     }
                 }
@@ -102,8 +102,7 @@ struct SidebarView: View {
                                         .truncationMode(.head)
                                 }
                             } icon: {
-                                Image(systemName: item.isFolder ? "folder" : FileNode.symbol(for: item.name))
-                                    .foregroundStyle(item.isFolder ? Color.accentColor : FileNode.tint(for: item.name))
+                                FileIcon(name: item.name, isFolder: item.isFolder)
                             }
                         }
                         .foregroundStyle(.primary)
@@ -206,8 +205,7 @@ private struct OpenDocumentRow: View {
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                 } icon: {
-                    Image(systemName: FileNode.symbol(for: document.name))
-                        .foregroundStyle(document.isBinary ? Color.secondary : FileNode.tint(for: document.name))
+                    FileIcon(name: document.name)
                 }
                 .contentShape(Rectangle())
             }
@@ -254,6 +252,32 @@ private struct OpenDocumentRow: View {
                 ShareLink(item: url)
             }
         }
+    }
+}
+
+/// A file's icon in lists: one glyph on a rounded tile of fixed size, so every row lines up
+/// whatever the glyph's own width is.
+struct FileIcon: View {
+    let symbol: String
+    let tint: Color
+
+    init(symbol: String, tint: Color) {
+        self.symbol = symbol
+        self.tint = tint
+    }
+
+    init(name: String, isFolder: Bool = false) {
+        symbol = isFolder ? "folder.fill" : FileNode.symbol(for: name)
+        tint = isFolder ? .accentColor : FileNode.tint(for: name)
+    }
+
+    var body: some View {
+        Image(systemName: symbol)
+            .font(.system(size: 14, weight: .semibold))
+            .foregroundStyle(tint)
+            .frame(width: 30, height: 30)
+            .background(tint.opacity(0.16), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .accessibilityHidden(true)
     }
 }
 
@@ -336,7 +360,7 @@ private struct FileNodeRow: View {
                     Label {
                         Text(verbatim: node.name).lineLimit(1)
                     } icon: {
-                        Image(systemName: "folder")
+                        FileIcon(name: node.name, isFolder: true)
                     }
                 }
             } else {
@@ -348,8 +372,7 @@ private struct FileNodeRow: View {
                             .lineLimit(1)
                             .truncationMode(.middle)
                     } icon: {
-                        Image(systemName: FileNode.symbol(for: node.name))
-                            .foregroundStyle(FileNode.tint(for: node.name))
+                        FileIcon(name: node.name)
                     }
                 }
                 .foregroundStyle(.primary)
@@ -472,7 +495,7 @@ extension FileNode {
         case "photo": return .purple
         case "film", "waveform": return .pink
         case "doc.richtext", "rectangle.on.rectangle": return .red
-        default: return .secondary
+        default: return .gray
         }
     }
 
