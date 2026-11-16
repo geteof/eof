@@ -183,6 +183,30 @@ final class EncodingTests: XCTestCase {
         XCTAssertNil(TextEncoding.latin1.encode("世界"))
     }
 
+    func testLegacyGuessFromBytes() {
+        // Text encoded elsewhere, so the byte-level guess is also checked where Foundation cannot decode it.
+        let samples: [(String, String)] = [
+            ("gb18030", "d5e2cac7d2bbb8f6bcf2cce5d6d0cec4b5c4cec4b1becec4bcfea3acd3c3c0b4b2e2cad4b1e0c2ebbcecb2e2a1a30ab5dab6fed0d0c4dac8dda1a30a"),
+            ("big5", "b36fac4fa440add3c163c5e9a4a4a4e5aabaa4e5a672c0c9aed7a141a5cea8d3b4fab8d5bd73bd58b0bbb4faa1430a"),
+            ("shift-jis", "82b182ea82cd93fa967b8cea82cc8365834c83588367837483408343838b82c582b78142834783938352815b836882cc83658358836781420a"),
+            ("euc-kr", "c0ccb0cdc0ba20c7d1b1b9beee20c5d8bdbac6ae20c6c4c0cfc0d4b4cfb4d92e20c0cec4dab5f920c5d7bdbac6ae2e0a"),
+            ("euc-jp", "a4b3a4eca4cfc6fccbdcb8eca4cea5c6a5ada5b9a5c8a5d5a5a1a5a4a5eba4c7a4b9a1a3b4c1bbfaa4e2beafa4b7b4dea4dfa4dea4b9a1a30a"),
+            ("gb18030", "b2bbb3c9a3acb0d1b4f3bcd2b6bcbdd0b3f6c0b4a1a30a"),
+        ]
+        for (expected, hex) in samples {
+            var bytes = [UInt8]()
+            var index = hex.startIndex
+            while index < hex.endIndex {
+                let next = hex.index(index, offsetBy: 2)
+                bytes.append(UInt8(hex[index..<next], radix: 16)!)
+                index = next
+            }
+            XCTAssertEqual(TextEncoding.legacyGuess(Data(bytes))?.id, expected)
+        }
+        XCTAssertNil(TextEncoding.legacyGuess(Data([0x63, 0x61, 0x66, 0xE9, 0x0A])))
+        XCTAssertNil(TextEncoding.legacyGuess(Data("na\u{EF}ve fa\u{E7}ade d\u{E9}j\u{E0} vu".unicodeScalars.map { UInt8($0.value) })))
+    }
+
     #if canImport(Darwin)
     func testLegacyCJKRoundTrip() throws {
         let samples: [(TextEncoding, String)] = [
@@ -190,6 +214,7 @@ final class EncodingTests: XCTestCase {
             (.big5, "這是一個繁體中文的文字檔案，用來測試編碼偵測。\n"),
             (.shiftJIS, "これは日本語のテキストファイルです。エンコードのテスト。\n"),
             (.eucKR, "이것은 한국어 텍스트 파일입니다. 인코딩 테스트.\n"),
+            (.eucJP, "これは日本語のテキストファイルです。漢字も少し含みます。\n"),
         ]
         for (encoding, text) in samples {
             let data = try XCTUnwrap(encoding.encode(text), encoding.id)
