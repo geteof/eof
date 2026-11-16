@@ -155,7 +155,8 @@ struct BrowserView: View {
 
     var body: some View {
         GeometryReader { proxy in
-            let wide = proxy.size.width >= 700
+            // Wide enough for a list and a preview side by side: an unfolded phone or an iPad.
+            let wide = proxy.size.width >= 600
             HStack(spacing: 0) {
                 NavigationStack(path: $path) {
                     FolderPage(url: root, root: root, wide: wide, selection: $selection, open: open, popTo: popTo)
@@ -163,7 +164,7 @@ struct BrowserView: View {
                             FolderPage(url: folder, root: root, wide: wide, selection: $selection, open: open, popTo: popTo)
                         }
                 }
-                .frame(width: wide ? min(max(340, proxy.size.width * 0.42), 460) : nil)
+                .frame(width: wide ? min(max(300, proxy.size.width * 0.44), 460) : nil)
                 if wide {
                     Divider()
                     NavigationStack {
