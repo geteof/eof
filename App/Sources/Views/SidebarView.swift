@@ -93,7 +93,9 @@ struct SidebarView: View {
                             Label {
                                 VStack(alignment: .leading, spacing: 2) {
                                     Text(verbatim: item.name)
-                                        .lineLimit(1)
+                                        .font(.callout)
+                                        .lineLimit(3)
+                                        .multilineTextAlignment(.leading)
                                         .truncationMode(.middle)
                                     Text(verbatim: item.location)
                                         .font(.caption)
@@ -186,7 +188,9 @@ private struct OpenDocumentRow: View {
                     VStack(alignment: .leading, spacing: 2) {
                         HStack(spacing: 6) {
                             Text(verbatim: document.name)
-                                .lineLimit(1)
+                                .font(.callout)
+                                .lineLimit(3)
+                                .multilineTextAlignment(.leading)
                                 .truncationMode(.middle)
                                 .fontWeight(isActive ? .semibold : .regular)
                                 .foregroundStyle(.primary)
@@ -358,7 +362,11 @@ private struct FileNodeRow: View {
                     FolderContents(node: node)
                 } label: {
                     Label {
-                        Text(verbatim: node.name).lineLimit(1)
+                        Text(verbatim: node.name)
+                            .font(.callout)
+                            .lineLimit(3)
+                            .multilineTextAlignment(.leading)
+                            .truncationMode(.middle)
                     } icon: {
                         FileIcon(name: node.name, isFolder: true)
                     }
@@ -369,7 +377,9 @@ private struct FileNodeRow: View {
                 } label: {
                     Label {
                         Text(verbatim: node.name)
-                            .lineLimit(1)
+                            .font(.callout)
+                            .lineLimit(3)
+                            .multilineTextAlignment(.leading)
                             .truncationMode(.middle)
                     } icon: {
                         FileIcon(name: node.name)

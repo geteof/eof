@@ -17,7 +17,7 @@ struct RootView: View {
     var body: some View {
         NavigationSplitView(columnVisibility: $columnVisibility, preferredCompactColumn: $model.compactColumn) {
             SidebarView(startImport: startImport, showSettings: $showSettings)
-                .navigationSplitViewColumnWidth(min: 240, ideal: 290, max: 380)
+                .navigationSplitViewColumnWidth(min: 260, ideal: 330, max: 440)
         } detail: {
             if let document = model.activeDocument {
                 EditorScreen(document: document, startImport: startImport)
