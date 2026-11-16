@@ -12,7 +12,7 @@ final class LanguageTests: XCTestCase {
             ("x.py", "python"), ("x.rb", "ruby"), ("x.php", "php"), ("x.cs", "csharp"), ("x.java", "java"),
             ("x.mm", "objc"), ("x.hpp", "cpp"), ("x.c", "c"), ("x.lua", "lua"), ("x.sh", "shell"),
             (".zshrc", "shell"), ("x.xml", "xml"), ("Info.plist", "xml"), ("x.ini", "ini"), ("x.css", "css"),
-            ("x.js", "javascript"), ("types.d.ts", "typescript"), ("unknown.zzz", "plain"), ("noext", "plain"),
+            ("x.js", "javascript"), ("types.d.ts", "typescript"), ("CMakeLists.txt", "cmake"), ("unknown.zzz", "plain"), ("noext", "plain"),
         ]
         for (name, id) in cases {
             XCTAssertEqual(Languages.detect(filename: name).id, id, name)
@@ -104,6 +104,49 @@ final class EncodingTests: XCTestCase {
     }
 
     #if canImport(Darwin)
+    /// Not an assertion: prints how Foundation's own detector does on the same samples, so the
+    /// hand-written scorer can be compared with it. Lines start with "ENCODING-COMPARE".
+    func testCompareWithSystemDetection() {
+        let samples: [(String, TextEncoding, String)] = [
+            ("zh-long", .gb18030, "这是一个简体中文的文本文件，用来测试编码检测。\n第二行内容。\n"),
+            ("zh-short", .gb18030, "不成，把大家都叫出来。\n"),
+            ("zh-tiny", .gb18030, "你好\n"),
+            ("zh-mixed", .gb18030, "name = 张三 # 用户名\nport = 8080\n"),
+            ("tw-long", .big5, "這是一個繁體中文的文字檔案，用來測試編碼偵測。\n"),
+            ("tw-short", .big5, "請問您的大名\n"),
+            ("ja-sjis", .shiftJIS, "これは日本語のテキストファイルです。エンコードのテスト。\n"),
+            ("ja-sjis-kanji", .shiftJIS, "東京都渋谷区\n"),
+            ("ja-euc", .eucJP, "これは日本語のテキストファイルです。漢字も少し含みます。\n"),
+            ("ko-long", .eucKR, "이것은 한국어 텍스트 파일입니다. 인코딩 테스트.\n"),
+            ("ko-short", .eucKR, "안녕하세요\n"),
+            ("latin1", .latin1, "café déjà vu naïve façade\n"),
+            ("cp1252", .windows1252, "“smart quotes” — and a dash…\n"),
+            ("cp1251", .windows1251, "Привет, это текстовый файл.\n"),
+        ]
+        let suggested = [TextEncoding.gb18030, .big5, .shiftJIS, .eucJP, .eucKR, .windows1252, .windows1251].map { NSNumber(value: $0.encoding.rawValue) }
+        var oursRight = 0, systemRight = 0, hintedRight = 0
+        for (label, encoding, text) in samples {
+            guard let data = encoding.encode(text) else {
+                print("ENCODING-COMPARE \(label): could not encode sample")
+                continue
+            }
+            let ours = TextEncoding.detect(data)
+            var converted: NSString?
+            var lossy: ObjCBool = false
+            let plain = NSString.stringEncoding(for: data, encodingOptions: [.allowLossyKey: false], convertedString: &converted, usedLossyConversion: &lossy)
+            let plainOK = (converted as String?) == text
+            var hintedString: NSString?
+            let hinted = NSString.stringEncoding(for: data, encodingOptions: [.allowLossyKey: false, .suggestedEncodingsKey: suggested, .useOnlySuggestedEncodingsKey: true], convertedString: &hintedString, usedLossyConversion: &lossy)
+            let hintedOK = (hintedString as String?) == text
+            let oursOK = ours?.text == text
+            oursRight += oursOK ? 1 : 0
+            systemRight += plainOK ? 1 : 0
+            hintedRight += hintedOK ? 1 : 0
+            print("ENCODING-COMPARE \(label) [\(encoding.id)]: ours=\(ours?.encoding.id ?? "nil") \(oursOK ? "OK" : "WRONG") | system=\(String.localizedName(of: String.Encoding(rawValue: plain))) \(plainOK ? "OK" : "WRONG") | system+hints=\(String.localizedName(of: String.Encoding(rawValue: hinted))) \(hintedOK ? "OK" : "WRONG")")
+        }
+        print("ENCODING-COMPARE total of \(samples.count): ours=\(oursRight) system=\(systemRight) system+hints=\(hintedRight)")
+    }
+
     func testLegacyCJKRoundTrip() throws {
         let samples: [(TextEncoding, String)] = [
             (.gb18030, "这是一个简体中文的文本文件，用来测试编码检测。\n第二行内容。\n"),

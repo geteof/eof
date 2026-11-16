@@ -87,6 +87,8 @@ final class AppSettings: ObservableObject {
         hasher.combine(highlightCurrentLine)
         hasher.combine(tabWidth)
         hasher.combine(showAccessoryBar)
+        hasher.combine(autoClosePairs)
+        hasher.combine(insertSpaces)
         return hasher.finalize()
     }
 

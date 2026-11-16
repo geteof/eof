@@ -109,11 +109,11 @@ public enum Outline {
     }()
 
     public static func supports(_ language: Language) -> Bool {
-        language.mode == .markdown || rules[language.id] != nil
+        language.id == "markdown" || rules[language.id] != nil
     }
 
     public static func items(in text: String, language: Language, limit: Int = 3000) -> [OutlineItem] {
-        if language.mode == .markdown { return markdown(text, limit: limit) }
+        if language.id == "markdown" { return markdown(text, limit: limit) }
         guard let rules = rules[language.id] else { return [] }
         var result: [OutlineItem] = []
         var lineNumber = 0

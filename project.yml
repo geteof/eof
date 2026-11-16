@@ -16,6 +16,14 @@ settings:
 packages:
   EOFCore:
     path: EOFCore
+  # TreeSitterLanguages has no release with the newer grammars (XML, Objective-C, Diff, Dart, Scala…), and its
+  # main branch pins Runestone to one revision. Both are pinned by revision so they always resolve together.
+  Runestone:
+    url: https://github.com/simonbs/Runestone
+    revision: 00426ba7f8681a90c1ea0b5c03a0e0bec8cba883
+  TreeSitterLanguages:
+    url: https://github.com/simonbs/TreeSitterLanguages
+    revision: 4442182303a00bf2764b10ead923a1066a0946f6
 targets:
   EOF:
     type: application
@@ -25,6 +33,99 @@ targets:
       - path: App/Resources
     dependencies:
       - package: EOFCore
+      - package: Runestone
+      - package: TreeSitterLanguages
+        product: TreeSitterSwiftRunestone
+      - package: TreeSitterLanguages
+        product: TreeSitterObjectiveCRunestone
+      - package: TreeSitterLanguages
+        product: TreeSitterCRunestone
+      - package: TreeSitterLanguages
+        product: TreeSitterCPPRunestone
+      - package: TreeSitterLanguages
+        product: TreeSitterCSharpRunestone
+      - package: TreeSitterLanguages
+        product: TreeSitterJavaRunestone
+      - package: TreeSitterLanguages
+        product: TreeSitterGoRunestone
+      - package: TreeSitterLanguages
+        product: TreeSitterRustRunestone
+      - package: TreeSitterLanguages
+        product: TreeSitterPythonRunestone
+      - package: TreeSitterLanguages
+        product: TreeSitterRubyRunestone
+      - package: TreeSitterLanguages
+        product: TreeSitterPHPRunestone
+      - package: TreeSitterLanguages
+        product: TreeSitterJavaScriptRunestone
+      - package: TreeSitterLanguages
+        product: TreeSitterTypeScriptRunestone
+      - package: TreeSitterLanguages
+        product: TreeSitterTSXRunestone
+      - package: TreeSitterLanguages
+        product: TreeSitterHTMLRunestone
+      - package: TreeSitterLanguages
+        product: TreeSitterSvelteRunestone
+      - package: TreeSitterLanguages
+        product: TreeSitterAstroRunestone
+      - package: TreeSitterLanguages
+        product: TreeSitterXMLRunestone
+      - package: TreeSitterLanguages
+        product: TreeSitterCSSRunestone
+      - package: TreeSitterLanguages
+        product: TreeSitterSCSSRunestone
+      - package: TreeSitterLanguages
+        product: TreeSitterJSONRunestone
+      - package: TreeSitterLanguages
+        product: TreeSitterJSON5Runestone
+      - package: TreeSitterLanguages
+        product: TreeSitterYAMLRunestone
+      - package: TreeSitterLanguages
+        product: TreeSitterTOMLRunestone
+      - package: TreeSitterLanguages
+        product: TreeSitterMarkdownRunestone
+      - package: TreeSitterLanguages
+        product: TreeSitterMarkdownInlineRunestone
+      - package: TreeSitterLanguages
+        product: TreeSitterBashRunestone
+      - package: TreeSitterLanguages
+        product: TreeSitterFishRunestone
+      - package: TreeSitterLanguages
+        product: TreeSitterSQLRunestone
+      - package: TreeSitterLanguages
+        product: TreeSitterLuaRunestone
+      - package: TreeSitterLanguages
+        product: TreeSitterDiffRunestone
+      - package: TreeSitterLanguages
+        product: TreeSitterDartRunestone
+      - package: TreeSitterLanguages
+        product: TreeSitterScalaRunestone
+      - package: TreeSitterLanguages
+        product: TreeSitterPerlRunestone
+      - package: TreeSitterLanguages
+        product: TreeSitterRRunestone
+      - package: TreeSitterLanguages
+        product: TreeSitterHaskellRunestone
+      - package: TreeSitterLanguages
+        product: TreeSitterElixirRunestone
+      - package: TreeSitterLanguages
+        product: TreeSitterProtoRunestone
+      - package: TreeSitterLanguages
+        product: TreeSitterHCLRunestone
+      - package: TreeSitterLanguages
+        product: TreeSitterLaTeXRunestone
+      - package: TreeSitterLanguages
+        product: TreeSitterCMakeRunestone
+      - package: TreeSitterLanguages
+        product: TreeSitterNixRunestone
+      - package: TreeSitterLanguages
+        product: TreeSitterOCamlRunestone
+      - package: TreeSitterLanguages
+        product: TreeSitterElmRunestone
+      - package: TreeSitterLanguages
+        product: TreeSitterJuliaRunestone
+      - package: TreeSitterLanguages
+        product: TreeSitterPascalRunestone
     info:
       path: App/Info.plist
       properties:

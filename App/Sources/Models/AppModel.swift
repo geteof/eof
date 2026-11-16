@@ -137,14 +137,24 @@ final class AppModel: ObservableObject {
         guard loadingPaths.insert(target.path).inserted else { return }
         loadingName = url.lastPathComponent
         let fallbacks = (settings.defaultEncoding, settings.defaultLineEnding)
+        let theme = EditorController.currentTheme()
         loadQueue.async {
             let result = Result { try LoadedFile.load(url, defaults: fallbacks) }
+            // Parse for the editor here as well: for a large file this is most of the work.
+            var prepared: PreparedEditorState?
+            if case .success(let loaded) = result, let text = loaded.text {
+                prepared = PreparedEditorState.prepare(
+                    text: text, language: loaded.language, filename: url.lastPathComponent,
+                    highlighting: (text as NSString).length <= LoadedFile.highlightLimit, theme: theme
+                )
+            }
             DispatchQueue.main.async {
                 self.loadingPaths.remove(target.path)
                 if self.loadingPaths.isEmpty { self.loadingName = nil }
                 switch result {
                 case .success(let loaded):
                     let document = EditorDocument(url: url, loaded: loaded)
+                    document.preparedState = prepared
                     self.documents.append(document)
                     if shouldActivate { self.activate(document) }
                     self.remember(url, isFolder: false)

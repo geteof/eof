@@ -108,7 +108,11 @@ private struct ThemePreview: View {
     @EnvironmentObject private var settings: AppSettings
     @Environment(\.colorScheme) private var colorScheme
 
-    private static let sample = "// EOF\nfunc greet(_ name: String) -> String {\n    let count = 42\n    return \"Hello, \\(name)!\"\n}"
+    /// A few lines of Swift with the colour role of each piece.
+    private static let sample: [(String, HighlightKind?)] = [
+        ("// EOF\n", .comment), ("func", .keyword), (" ", nil), ("greet", .function), ("(_ name: ", nil), ("String", .type), (") -> ", nil), ("String", .type), (" {\n    ", nil),
+        ("let", .keyword), (" count = ", nil), ("42", .number), ("\n    ", nil), ("return", .keyword), (" ", nil), ("\"Hello, \\(name)!\"", .string), ("\n}", nil),
+    ]
 
     var body: some View {
         let theme = settings.theme(dark: colorScheme == .dark)
@@ -120,16 +124,14 @@ private struct ThemePreview: View {
     }
 
     private func attributed(_ theme: EditorTheme) -> AttributedString {
-        let text = ThemePreview.sample
-        let result = NSMutableAttributedString(string: text, attributes: [
-            .font: settings.font(size: min(settings.fontSize, 16)),
-            .foregroundColor: theme.foreground,
-        ])
-        if let swift = Languages.language(id: "swift") {
-            for token in Tokenizer.tokenize(text, language: swift) {
-                result.addAttribute(.foregroundColor, value: theme.color(for: token.kind), range: token.range)
-            }
+        let font = settings.font(size: min(settings.fontSize, 16))
+        let result = NSMutableAttributedString()
+        for (text, kind) in ThemePreview.sample {
+            result.append(NSAttributedString(string: text, attributes: [
+                .font: font,
+                .foregroundColor: kind.map(theme.color(for:)) ?? theme.foreground,
+            ]))
         }
-        return (try? AttributedString(result, including: \.uiKit)) ?? AttributedString(text)
+        return (try? AttributedString(result, including: \.uiKit)) ?? AttributedString(result.string)
     }
 }

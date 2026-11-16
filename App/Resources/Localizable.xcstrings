@@ -464,6 +464,19 @@
         }
       }
     },
+    "EOF": {
+      "shouldTranslate": false
+    },
+    "EOF keeps your files on your device. It has no account and collects no data.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "EOF 只在你的设备上处理文件，没有账号，也不收集任何数据。"
+          }
+        }
+      }
+    },
     "Edited": {
       "localizations": {
         "zh-Hans": {
@@ -970,6 +983,26 @@
           "stringUnit": {
             "state": "translated",
             "value": "左移"
+          }
+        }
+      }
+    },
+    "Move Line Down": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "下移当前行"
+          }
+        }
+      }
+    },
+    "Move Line Up": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "上移当前行"
           }
         }
       }
@@ -1660,19 +1693,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "制表符：%lld"
-          }
-        }
-      }
-    },
-    "EOF": {
-      "shouldTranslate": false
-    },
-    "EOF keeps your files on your device. It has no account and collects no data.": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "EOF 只在你的设备上处理文件，没有账号，也不收集任何数据。"
           }
         }
       }

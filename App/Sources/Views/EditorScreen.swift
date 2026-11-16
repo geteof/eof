@@ -158,9 +158,9 @@ struct EditorScreen: View {
         EditorHost(
             document: document,
             isDark: colorScheme == .dark,
-            settingsStamp: settings.editorStamp ^ document.indent.width ^ (document.isReadOnly ? 1 << 20 : 0)
+            settingsStamp: settings.editorStamp ^ document.indent.width ^ (document.indent.usesTabs ? 1 << 19 : 0) ^ (document.isReadOnly ? 1 << 20 : 0)
         )
-        .ignoresSafeArea(.container, edges: .horizontal)
+        .background(Color(uiColor: settings.theme(dark: colorScheme == .dark).background).ignoresSafeArea(.container, edges: .horizontal))
     }
 
     // MARK: - Toolbar
@@ -298,6 +298,16 @@ struct EditorScreen: View {
                             document.controller.toggleComment()
                         } label: {
                             Label("Toggle Comment", systemImage: "text.bubble")
+                        }
+                        Button {
+                            document.controller.moveLinesUp()
+                        } label: {
+                            Label("Move Line Up", systemImage: "arrow.up")
+                        }
+                        Button {
+                            document.controller.moveLinesDown()
+                        } label: {
+                            Label("Move Line Down", systemImage: "arrow.down")
                         }
                         Button {
                             document.controller.duplicateLine()

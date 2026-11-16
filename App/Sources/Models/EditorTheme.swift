@@ -1,6 +1,43 @@
 import SwiftUI
-import EOFCore
 import UIKit
+
+/// The colour roles a theme defines. Tree-sitter highlight names are folded into these.
+enum HighlightKind: CaseIterable {
+    case comment, string, number, keyword, type, function, constant, variable, tag, attribute, meta, heading, emphasis, link, inserted, deleted
+
+    /// Maps a capture name from a highlights query, such as `function.method` or `text.title`.
+    /// Returns nil for names that keep the plain text colour (operators, punctuation, variables).
+    static func named(_ highlightName: String) -> HighlightKind? {
+        if let exact = exactNames[highlightName] { return exact }
+        var parts = highlightName.split(separator: ".")
+        while !parts.isEmpty {
+            if let hit = prefixes[parts.joined(separator: ".")] { return hit }
+            parts.removeLast()
+        }
+        return nil
+    }
+
+    private static let exactNames: [String: HighlightKind] = [
+        "variable.builtin": .constant, "variable.parameter": .variable, "variable.member": .attribute,
+        "string.escape": .constant, "string.special.key": .attribute, "string.special.uri": .link, "string.special.symbol": .constant,
+        "tag.attribute": .attribute, "punctuation.special": .meta, "keyword.directive": .meta,
+        "text.title": .heading, "text.strong": .emphasis, "text.emphasis": .emphasis, "text.strike": .comment,
+        "text.uri": .link, "text.reference": .link, "text.literal": .string, "text.math": .number,
+        "text.environment": .keyword, "text.environment.name": .type, "text.warning": .deleted, "text.danger": .deleted,
+        "diff.plus": .inserted, "diff.minus": .deleted, "diff.delta": .meta,
+    ]
+
+    private static let prefixes: [String: HighlightKind] = [
+        "comment": .comment, "string": .string, "character": .string, "escape": .constant,
+        "number": .number, "float": .number, "boolean": .constant, "constant": .constant,
+        "keyword": .keyword, "conditional": .keyword, "repeat": .keyword, "include": .keyword, "import": .keyword,
+        "exception": .keyword, "storageclass": .keyword, "define": .meta, "preproc": .meta, "macro": .meta,
+        "type": .type, "constructor": .type, "interface": .type, "namespace": .type, "module": .type,
+        "function": .function, "method": .function,
+        "property": .attribute, "field": .attribute, "attribute": .attribute, "parameter": .variable,
+        "tag": .tag, "label": .meta, "markup": .heading, "title": .heading, "selector": .tag,
+    ]
+}
 
 struct EditorTheme: Identifiable, Equatable {
     let id: String
@@ -14,11 +51,11 @@ struct EditorTheme: Identifiable, Equatable {
     let findMatch: UIColor
     let bracketMatch: UIColor
     let invisibles: UIColor
-    let colors: [TokenKind: UIColor]
+    let colors: [HighlightKind: UIColor]
 
     static func == (lhs: EditorTheme, rhs: EditorTheme) -> Bool { lhs.id == rhs.id }
 
-    func color(for kind: TokenKind) -> UIColor { colors[kind] ?? foreground }
+    func color(for kind: HighlightKind) -> UIColor { colors[kind] ?? foreground }
 
     private static func hex(_ value: UInt32, alpha: CGFloat = 1) -> UIColor {
         UIColor(red: CGFloat((value >> 16) & 0xFF) / 255, green: CGFloat((value >> 8) & 0xFF) / 255, blue: CGFloat(value & 0xFF) / 255, alpha: alpha)

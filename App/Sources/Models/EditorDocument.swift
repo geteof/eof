@@ -35,8 +35,15 @@ struct LoadedFile {
     var byteCount: Int
     var modified: Date?
 
-    static let highlightLimit = 2_000_000
-    static let editLimit = 12_000_000
+    /// Above this many UTF-16 units a file opens without syntax colouring.
+    static let highlightLimit = 4_000_000
+    /// Above this it also opens read-only.
+    static let editLimit = 24_000_000
+
+    var text: String? {
+        if case .text(let text) = content { return text }
+        return nil
+    }
 
     static func load(_ url: URL, encoding forced: TextEncoding? = nil, defaults: (encoding: TextEncoding, lineEnding: LineEnding)) throws -> LoadedFile {
         let data = try FileAccess.read(url)
@@ -90,6 +97,8 @@ final class EditorDocument: ObservableObject, Identifiable {
     private(set) var draftID: String?
     private(set) var fileDate: Date?
     private var pendingText: String
+    /// Editor contents parsed while the file was loading, so that showing it does not block the UI.
+    var preparedState: PreparedEditorState?
     private var controllerStorage: EditorController?
     private var autosaveWork: DispatchWorkItem?
     private let settings = AppSettings.shared
@@ -101,8 +110,9 @@ final class EditorDocument: ObservableObject, Identifiable {
     /// The editor view for this document, created the first time it is shown.
     var controller: EditorController {
         if let controllerStorage { return controllerStorage }
-        let created = EditorController(document: self, text: pendingText)
+        let created = EditorController(document: self, text: pendingText, prepared: preparedState)
         pendingText = ""
+        preparedState = nil
         controllerStorage = created
         return created
     }
