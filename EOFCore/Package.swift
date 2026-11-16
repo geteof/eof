@@ -5,8 +5,12 @@ let package = Package(
     name: "EOFCore",
     platforms: [.iOS(.v17), .macOS(.v14)],
     products: [.library(name: "EOFCore", targets: ["EOFCore"])],
+    dependencies: [
+        // The swift-6.4.2-RELEASE tag. Pinned by revision because the package depends on a branch of swift-cmark.
+        .package(url: "https://github.com/swiftlang/swift-markdown.git", revision: "bc55d614bc8608d74cdc18d3aa6413bd8661e444"),
+    ],
     targets: [
-        .target(name: "EOFCore"),
+        .target(name: "EOFCore", dependencies: [.product(name: "Markdown", package: "swift-markdown")]),
         .testTarget(name: "EOFCoreTests", dependencies: ["EOFCore"]),
     ]
 )

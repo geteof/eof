@@ -1,18 +1,21 @@
 import Foundation
+import Markdown
 
-/// A small Markdown to HTML converter for the preview pane: headings, paragraphs, emphasis,
-/// code, links, images, lists (nested, ordered, task), block quotes, rules and pipe tables.
-/// Raw HTML is escaped, so previewing an untrusted file cannot inject markup.
+/// Markdown to HTML for the preview pane. Parsing is swift-markdown (cmark-gfm); the rendering is
+/// done here instead of with the package's `HTMLFormatter`, because that one writes raw HTML blocks,
+/// inline HTML and link targets into the output unchanged. A preview of an untrusted file must not
+/// let the file inject markup, so this renderer escapes all of them.
 public enum MarkdownHTML {
     public static func escape(_ text: String) -> String {
         var out = ""
-        out.reserveCapacity(text.count)
+        out.reserveCapacity(text.utf8.count)
         for ch in text {
             switch ch {
             case "&": out += "&amp;"
             case "<": out += "&lt;"
             case ">": out += "&gt;"
             case "\"": out += "&quot;"
+            case "'": out += "&#39;"
             default: out.append(ch)
             }
         }
@@ -20,435 +23,231 @@ public enum MarkdownHTML {
     }
 
     public static func render(_ markdown: String) -> String {
-        var lines = markdown.components(separatedBy: "\n")
-        // YAML front matter is shown as a code block instead of a run-on paragraph.
+        var source = markdown
         var out = ""
-        if lines.first == "---", let close = lines.dropFirst().firstIndex(of: "---") {
-            out += "<pre class=\"frontmatter\"><code>" + escape(lines[1..<close].joined(separator: "\n")) + "</code></pre>\n"
-            lines.removeFirst(close + 1)
+        // YAML front matter is shown as a code block instead of a rule and a run-on paragraph.
+        if source.hasPrefix("---\n"), let close = source.range(of: "\n---", range: source.index(source.startIndex, offsetBy: 3)..<source.endIndex) {
+            let after = source[close.upperBound...]
+            if after.isEmpty || after.first == "\n" {
+                let body = source[source.index(source.startIndex, offsetBy: 4)..<close.lowerBound]
+                out += "<pre class=\"frontmatter\"><code>" + escape(String(body)) + "</code></pre>\n"
+                source = String(after.dropFirst())
+            }
         }
-        var parser = BlockParser(lines: lines)
-        out += parser.parse()
+        var renderer = SafeHTMLRenderer()
+        renderer.visit(Document(parsing: source))
+        return out + renderer.result
+    }
+
+    /// A URL that is safe to put in `href` or `src`: script-running schemes are replaced by `#`.
+    static func safeURL(_ raw: String?) -> String {
+        guard let raw else { return "" }
+        let url = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        // Browsers ignore control characters and whitespace inside the scheme, so strip them before checking.
+        let compact = url.unicodeScalars.filter { $0.value > 0x20 && $0.value != 0x7F }.map(String.init).joined().lowercased()
+        for scheme in ["javascript:", "vbscript:", "data:", "file:"] where compact.hasPrefix(scheme) {
+            if scheme == "data:", compact.hasPrefix("data:image/"), !compact.hasPrefix("data:image/svg") { break }
+            return "#"
+        }
+        return escape(url)
+    }
+}
+
+private struct SafeHTMLRenderer: MarkupWalker {
+    var result = ""
+    private var inTableHead = false
+    private var alignments: [Table.ColumnAlignment?] = []
+    private var column = 0
+
+    private func escape(_ text: String) -> String { MarkdownHTML.escape(text) }
+
+    private func slug(_ title: String) -> String {
+        var out = ""
+        for ch in title.lowercased() {
+            if ch.isLetter || ch.isNumber { out.append(ch) } else if ch == " " || ch == "-" { out.append("-") }
+        }
         return out
     }
 
-    // MARK: - Blocks
-
-    private struct BlockParser {
-        let lines: [String]
-        var index = 0
-
-        init(lines: [String]) { self.lines = lines }
-
-        mutating func parse() -> String {
-            var out = ""
-            while index < lines.count {
-                let line = lines[index]
-                let trimmed = line.trimmingCharacters(in: .whitespaces)
-                if trimmed.isEmpty { index += 1; continue }
-
-                if let fence = fenceMarker(trimmed) {
-                    out += codeBlock(fence, info: String(trimmed.dropFirst(fence.count)))
-                } else if let level = headingLevel(trimmed) {
-                    var text = trimmed.dropFirst(level).trimmingCharacters(in: .whitespaces)
-                    while text.hasSuffix("#") { text.removeLast() }
-                    let title = text.trimmingCharacters(in: .whitespaces)
-                    out += "<h\(level) id=\"\(slug(title))\">\(inline(title))</h\(level)>\n"
-                    index += 1
-                } else if isRule(trimmed) {
-                    out += "<hr>\n"
-                    index += 1
-                } else if trimmed.hasPrefix(">") {
-                    out += blockQuote()
-                } else if listMarker(line) != nil {
-                    out += list()
-                } else if isTableStart() {
-                    out += table()
-                } else {
-                    out += paragraph()
-                }
-            }
-            return out
-        }
-
-        private func fenceMarker(_ trimmed: String) -> String? {
-            for ch in ["`", "~"] as [Character] {
-                let run = trimmed.prefix { $0 == ch }.count
-                if run >= 3 { return String(repeating: ch, count: run) }
-            }
-            return nil
-        }
-
-        private func headingLevel(_ trimmed: String) -> Int? {
-            let hashes = trimmed.prefix { $0 == "#" }.count
-            guard hashes >= 1, hashes <= 6 else { return nil }
-            let rest = trimmed.dropFirst(hashes)
-            return rest.isEmpty || rest.first == " " ? hashes : nil
-        }
-
-        private func isRule(_ trimmed: String) -> Bool {
-            guard let first = trimmed.first, first == "-" || first == "*" || first == "_" else { return false }
-            let compact = trimmed.filter { $0 != " " }
-            return compact.count >= 3 && compact.allSatisfy { $0 == first }
-        }
-
-        /// (indent, ordered, content after the marker)
-        private func listMarker(_ line: String) -> (indent: Int, ordered: Bool, content: String)? {
-            let indent = line.prefix { $0 == " " || $0 == "\t" }.reduce(0) { $0 + ($1 == "\t" ? 4 : 1) }
-            let rest = line.drop { $0 == " " || $0 == "\t" }
-            guard let first = rest.first else { return nil }
-            if first == "-" || first == "*" || first == "+" {
-                let after = rest.dropFirst()
-                guard after.first == " " else { return nil }
-                return (indent, false, String(after.dropFirst()))
-            }
-            let digits = rest.prefix { $0.isASCII && $0.isNumber }
-            if !digits.isEmpty, digits.count < 10 {
-                let after = rest.dropFirst(digits.count)
-                if let mark = after.first, mark == "." || mark == ")", after.dropFirst().first == " " {
-                    return (indent, true, String(after.dropFirst(2)))
-                }
-            }
-            return nil
-        }
-
-        private mutating func codeBlock(_ fence: String, info: String) -> String {
-            index += 1
-            var body: [String] = []
-            while index < lines.count {
-                let line = lines[index]
-                index += 1
-                if line.trimmingCharacters(in: .whitespaces).hasPrefix(fence) { break }
-                body.append(line)
-            }
-            let language = info.trimmingCharacters(in: .whitespaces).split(separator: " ").first.map(String.init) ?? ""
-            let attribute = language.isEmpty ? "" : " class=\"language-\(escape(language))\""
-            return "<pre><code\(attribute)>" + escape(body.joined(separator: "\n")) + "</code></pre>\n"
-        }
-
-        private mutating func blockQuote() -> String {
-            var inner: [String] = []
-            while index < lines.count {
-                let trimmed = lines[index].trimmingCharacters(in: .whitespaces)
-                guard trimmed.hasPrefix(">") else {
-                    // Lazy continuation of the quoted paragraph.
-                    if trimmed.isEmpty || inner.last?.isEmpty != false { break }
-                    inner.append(trimmed)
-                    index += 1
-                    continue
-                }
-                var rest = trimmed.dropFirst()
-                if rest.first == " " { rest = rest.dropFirst() }
-                inner.append(String(rest))
-                index += 1
-            }
-            var nested = BlockParser(lines: inner)
-            return "<blockquote>\n" + nested.parse() + "</blockquote>\n"
-        }
-
-        private mutating func list() -> String {
-            guard let first = listMarker(lines[index]) else { return "" }
-            let baseIndent = first.indent
-            let tag = first.ordered ? "ol" : "ul"
-            var out = "<\(tag)>\n"
-            while index < lines.count, let marker = listMarker(lines[index]), marker.indent >= baseIndent, marker.indent < baseIndent + 2, marker.ordered == first.ordered {
-                index += 1
-                var content = marker.content
-                var checkbox = ""
-                for (prefix, checked) in [("[ ] ", false), ("[x] ", true), ("[X] ", true)] where content.hasPrefix(prefix) {
-                    content.removeFirst(prefix.count)
-                    checkbox = "<input type=\"checkbox\" disabled\(checked ? " checked" : "")> "
-                }
-                var body = [content]
-                var nested = ""
-                while index < lines.count {
-                    let line = lines[index]
-                    let trimmed = line.trimmingCharacters(in: .whitespaces)
-                    if trimmed.isEmpty {
-                        // A blank line ends the item unless an indented continuation follows.
-                        guard index + 1 < lines.count else { break }
-                        let next = lines[index + 1]
-                        let nextIndent = next.prefix { $0 == " " || $0 == "\t" }.count
-                        if next.trimmingCharacters(in: .whitespaces).isEmpty || nextIndent < baseIndent + 2 { break }
-                        index += 1
-                        continue
-                    }
-                    if let inner = listMarker(line) {
-                        if inner.indent >= baseIndent + 2 {
-                            nested += list()
-                            continue
-                        }
-                        break
-                    }
-                    let indent = line.prefix { $0 == " " || $0 == "\t" }.count
-                    if indent < baseIndent + 2, headingLevel(trimmed) != nil || fenceMarker(trimmed) != nil || trimmed.hasPrefix(">") { break }
-                    body.append(trimmed)
-                    index += 1
-                }
-                out += "<li>" + checkbox + inline(body.joined(separator: "\n")) + (nested.isEmpty ? "" : "\n" + nested) + "</li>\n"
-                // Skip blank lines between items.
-                while index < lines.count, lines[index].trimmingCharacters(in: .whitespaces).isEmpty,
-                      index + 1 < lines.count, let next = listMarker(lines[index + 1]), next.indent == baseIndent { index += 1 }
-            }
-            return out + "</\(tag)>\n"
-        }
-
-        private func cells(_ line: String) -> [String] {
-            var trimmed = line.trimmingCharacters(in: .whitespaces)
-            if trimmed.hasPrefix("|") { trimmed.removeFirst() }
-            if trimmed.hasSuffix("|"), !trimmed.hasSuffix("\\|") { trimmed.removeLast() }
-            var result: [String] = []
-            var current = ""
-            var escaped = false
-            var inCode = false
-            for ch in trimmed {
-                if escaped { current.append(ch); escaped = false; continue }
-                if ch == "\\" { escaped = true; current.append(ch); continue }
-                if ch == "`" { inCode.toggle() }
-                if ch == "|", !inCode {
-                    result.append(current.trimmingCharacters(in: .whitespaces))
-                    current = ""
-                } else {
-                    current.append(ch)
-                }
-            }
-            result.append(current.trimmingCharacters(in: .whitespaces))
-            return result
-        }
-
-        private func alignment(_ cell: String) -> String? {
-            let c = cell.trimmingCharacters(in: .whitespaces)
-            guard c.count >= 1, c.allSatisfy({ $0 == "-" || $0 == ":" }), c.contains("-") else { return nil }
-            if c.hasPrefix(":"), c.hasSuffix(":") { return "center" }
-            if c.hasSuffix(":") { return "right" }
-            return c.hasPrefix(":") ? "left" : ""
-        }
-
-        private func isTableStart() -> Bool {
-            guard index + 1 < lines.count, lines[index].contains("|") else { return false }
-            let separator = cells(lines[index + 1])
-            return !separator.isEmpty && separator.allSatisfy { alignment($0) != nil } && lines[index + 1].contains("-")
-        }
-
-        private mutating func table() -> String {
-            let header = cells(lines[index])
-            let alignments = cells(lines[index + 1]).map { alignment($0) ?? "" }
-            index += 2
-            func style(_ column: Int) -> String {
-                column < alignments.count && !alignments[column].isEmpty ? " style=\"text-align:\(alignments[column])\"" : ""
-            }
-            var out = "<table>\n<thead><tr>"
-            for (column, cell) in header.enumerated() { out += "<th\(style(column))>\(inline(cell))</th>" }
-            out += "</tr></thead>\n<tbody>\n"
-            while index < lines.count, lines[index].contains("|"), !lines[index].trimmingCharacters(in: .whitespaces).isEmpty {
-                let row = cells(lines[index])
-                out += "<tr>"
-                for column in 0..<header.count {
-                    out += "<td\(style(column))>\(column < row.count ? inline(row[column]) : "")</td>"
-                }
-                out += "</tr>\n"
-                index += 1
-            }
-            return out + "</tbody>\n</table>\n"
-        }
-
-        private mutating func paragraph() -> String {
-            var body: [String] = []
-            while index < lines.count {
-                let line = lines[index]
-                let trimmed = line.trimmingCharacters(in: .whitespaces)
-                if trimmed.isEmpty { break }
-                if !body.isEmpty {
-                    // Setext headings
-                    if trimmed.allSatisfy({ $0 == "=" }) {
-                        index += 1
-                        let title = body.joined(separator: " ")
-                        return "<h1 id=\"\(slug(title))\">\(inline(title))</h1>\n"
-                    }
-                    if trimmed.count >= 2, trimmed.allSatisfy({ $0 == "-" }) {
-                        index += 1
-                        let title = body.joined(separator: " ")
-                        return "<h2 id=\"\(slug(title))\">\(inline(title))</h2>\n"
-                    }
-                    if headingLevel(trimmed) != nil || fenceMarker(trimmed) != nil || trimmed.hasPrefix(">") || isRule(trimmed) || listMarker(line) != nil { break }
-                }
-                // Two trailing spaces or a backslash force a line break.
-                if line.hasSuffix("  ") || trimmed.hasSuffix("\\") {
-                    body.append((trimmed.hasSuffix("\\") ? String(trimmed.dropLast()) : trimmed) + "\u{0}")
-                } else {
-                    body.append(trimmed)
-                }
-                index += 1
-            }
-            let html = inline(body.joined(separator: "\n")).replacingOccurrences(of: "\u{0}\n", with: "<br>\n").replacingOccurrences(of: "\u{0}", with: "")
-            return "<p>" + html + "</p>\n"
-        }
-
-        private func slug(_ title: String) -> String {
-            var out = ""
-            for ch in title.lowercased() {
-                if ch.isLetter || ch.isNumber { out.append(ch) } else if ch == " " || ch == "-" { out.append("-") }
-            }
-            return out
-        }
-
-        private func inline(_ text: String) -> String { MarkdownHTML.inline(text) }
+    private mutating func wrap(_ tag: String, _ markup: Markup) {
+        result += "<\(tag)>"
+        descendInto(markup)
+        result += "</\(tag)>"
     }
 
-    // MARK: - Inline
+    // MARK: Blocks
 
-    static func inline(_ text: String) -> String {
-        let chars = Array(text)
-        var out = ""
-        var i = 0
+    mutating func visitBlockQuote(_ blockQuote: BlockQuote) {
+        result += "<blockquote>\n"
+        descendInto(blockQuote)
+        result += "</blockquote>\n"
+    }
 
-        func findClosing(_ marker: [Character], from: Int) -> Int? {
-            guard !marker.isEmpty, from < chars.count else { return nil }
-            var j = from
-            while j + marker.count <= chars.count {
-                if chars[j] == "\\" { j += 2; continue }
-                if Array(chars[j..<j + marker.count]) == marker, chars[j - 1] != " " {
-                    // For `*` do not stop inside a longer run (`**`).
-                    if marker.count == 1, j + 1 < chars.count, chars[j + 1] == marker[0], j + 2 < chars.count, chars[j + 2] != marker[0] {
-                        j += 2
-                        continue
-                    }
-                    return j
-                }
-                j += 1
-            }
-            return nil
+    mutating func visitCodeBlock(_ codeBlock: CodeBlock) {
+        var attribute = ""
+        if let language = codeBlock.language?.split(separator: " ").first, !language.isEmpty {
+            attribute = " class=\"language-\(escape(String(language)))\""
         }
+        var code = codeBlock.code
+        if code.hasSuffix("\n") { code.removeLast() }
+        result += "<pre><code\(attribute)>\(escape(code))</code></pre>\n"
+    }
 
-        func safeURL(_ raw: String) -> String {
-            let url = raw.trimmingCharacters(in: .whitespaces)
-            let lower = url.lowercased()
-            if lower.hasPrefix("javascript:") || lower.hasPrefix("vbscript:") || lower.hasPrefix("data:text/html") { return "#" }
-            return escape(url)
-        }
+    mutating func visitHeading(_ heading: Heading) {
+        let level = min(max(heading.level, 1), 6)
+        result += "<h\(level) id=\"\(escape(slug(heading.plainText)))\">"
+        descendInto(heading)
+        result += "</h\(level)>\n"
+    }
 
-        while i < chars.count {
-            let c = chars[i]
-            if c == "\\", i + 1 < chars.count, "\\`*_{}[]()#+-.!|~<>".contains(chars[i + 1]) {
-                out += escape(String(chars[i + 1]))
-                i += 2
-                continue
-            }
-            if c == "`" {
-                var run = i
-                while run < chars.count, chars[run] == "`" { run += 1 }
-                let ticks = run - i
-                var j = run
-                var close: Int? = nil
-                while j < chars.count {
-                    if chars[j] == "`" {
-                        var end = j
-                        while end < chars.count, chars[end] == "`" { end += 1 }
-                        if end - j == ticks { close = j; break }
-                        j = end
-                    } else {
-                        j += 1
-                    }
-                }
-                if let close {
-                    let code = String(chars[run..<close]).trimmingCharacters(in: .whitespaces)
-                    out += "<code>" + escape(code) + "</code>"
-                    i = close + ticks
-                    continue
-                }
-                out += String(repeating: "`", count: ticks)
-                i = run
-                continue
-            }
-            if c == "!" || c == "[" {
-                let isImage = c == "!" && i + 1 < chars.count && chars[i + 1] == "["
-                if isImage || c == "[" {
-                    let open = isImage ? i + 1 : i
-                    var depth = 0
-                    var close: Int? = nil
-                    var j = open
-                    while j < chars.count {
-                        if chars[j] == "\\" { j += 2; continue }
-                        if chars[j] == "[" { depth += 1 }
-                        if chars[j] == "]" { depth -= 1; if depth == 0 { close = j; break } }
-                        j += 1
-                    }
-                    if let close, close + 1 < chars.count, chars[close + 1] == "(" {
-                        var end = close + 2
-                        var parens = 1
-                        while end < chars.count {
-                            if chars[end] == "(" { parens += 1 }
-                            if chars[end] == ")" { parens -= 1; if parens == 0 { break } }
-                            end += 1
-                        }
-                        if end < chars.count {
-                            let label = String(chars[(open + 1)..<close])
-                            var target = String(chars[(close + 2)..<end]).trimmingCharacters(in: .whitespaces)
-                            var title = ""
-                            if let quote = target.firstIndex(of: "\""), target.hasSuffix("\""), quote != target.index(before: target.endIndex) {
-                                title = String(target[target.index(after: quote)..<target.index(before: target.endIndex)])
-                                target = String(target[..<quote]).trimmingCharacters(in: .whitespaces)
-                            }
-                            if target.hasPrefix("<"), target.hasSuffix(">") { target = String(target.dropFirst().dropLast()) }
-                            let titleAttribute = title.isEmpty ? "" : " title=\"\(escape(title))\""
-                            if isImage {
-                                out += "<img src=\"\(safeURL(target))\" alt=\"\(escape(label))\"\(titleAttribute)>"
-                            } else {
-                                out += "<a href=\"\(safeURL(target))\"\(titleAttribute)>\(inline(label))</a>"
-                            }
-                            i = end + 1
-                            continue
-                        }
-                    }
-                }
-            }
-            if c == "<" {
-                // <https://example.com> autolink
-                if let close = chars[i...].firstIndex(of: ">") {
-                    let inner = String(chars[(i + 1)..<close])
-                    if inner.hasPrefix("http://") || inner.hasPrefix("https://") || inner.hasPrefix("mailto:"), !inner.contains(" ") {
-                        out += "<a href=\"\(safeURL(inner))\">\(escape(inner))</a>"
-                        i = close + 1
-                        continue
-                    }
-                }
-            }
-            if c == "h", i == 0 || !(chars[i - 1].isLetter || chars[i - 1].isNumber) {
-                let rest = String(chars[i..<min(chars.count, i + 8)])
-                if rest.hasPrefix("http://") || rest.hasPrefix("https://") {
-                    var end = i
-                    while end < chars.count, !chars[end].isWhitespace, chars[end] != "<", chars[end] != ")" { end += 1 }
-                    while end > i, ".,;:!?".contains(chars[end - 1]) { end -= 1 }
-                    let url = String(chars[i..<end])
-                    out += "<a href=\"\(safeURL(url))\">\(escape(url))</a>"
-                    i = end
-                    continue
-                }
-            }
-            if c == "*" || c == "_" || c == "~" {
-                var run = i
-                while run < chars.count, chars[run] == c { run += 1 }
-                let count = run - i
-                let insideWord = c == "_" && i > 0 && (chars[i - 1].isLetter || chars[i - 1].isNumber)
-                let valid = run < chars.count && !chars[run].isWhitespace && !insideWord && (c == "~" ? count == 2 : count <= 3)
-                if valid, let close = findClosing(Array(repeating: c, count: count), from: run + 1) {
-                    let inner = inline(String(chars[run..<close]))
-                    switch (c, count) {
-                    case ("~", _): out += "<del>\(inner)</del>"
-                    case (_, 1): out += "<em>\(inner)</em>"
-                    case (_, 2): out += "<strong>\(inner)</strong>"
-                    default: out += "<strong><em>\(inner)</em></strong>"
-                    }
-                    i = close + count
-                    continue
-                }
-                out += escape(String(repeating: c, count: count))
-                i = run
-                continue
-            }
-            out += escape(String(c))
-            i += 1
+    mutating func visitThematicBreak(_ thematicBreak: ThematicBreak) {
+        result += "<hr>\n"
+    }
+
+    mutating func visitHTMLBlock(_ html: HTMLBlock) {
+        // Shown as text, never interpreted.
+        var raw = html.rawHTML
+        while raw.hasSuffix("\n") { raw.removeLast() }
+        result += "<pre class=\"raw-html\"><code>\(escape(raw))</code></pre>\n"
+    }
+
+    mutating func visitListItem(_ listItem: ListItem) {
+        result += "<li>"
+        if let checkbox = listItem.checkbox {
+            result += "<input type=\"checkbox\" disabled\(checkbox == .checked ? " checked" : "")> "
         }
-        return out
+        // A tight item holds one paragraph; render it inline so simple lists stay compact.
+        let children = Array(listItem.children)
+        for (index, child) in children.enumerated() {
+            if index == 0, let paragraph = child as? Paragraph, children.dropFirst().allSatisfy({ $0 is UnorderedList || $0 is OrderedList }) {
+                descendInto(paragraph)
+                if children.count > 1 { result += "\n" }
+            } else {
+                visit(child)
+            }
+        }
+        result += "</li>\n"
+    }
+
+    mutating func visitOrderedList(_ orderedList: OrderedList) {
+        result += orderedList.startIndex != 1 ? "<ol start=\"\(orderedList.startIndex)\">\n" : "<ol>\n"
+        descendInto(orderedList)
+        result += "</ol>\n"
+    }
+
+    mutating func visitUnorderedList(_ unorderedList: UnorderedList) {
+        result += "<ul>\n"
+        descendInto(unorderedList)
+        result += "</ul>\n"
+    }
+
+    mutating func visitParagraph(_ paragraph: Paragraph) {
+        result += "<p>"
+        descendInto(paragraph)
+        result += "</p>\n"
+    }
+
+    mutating func visitTable(_ table: Table) {
+        result += "<table>\n"
+        alignments = table.columnAlignments
+        descendInto(table)
+        alignments = []
+        result += "</table>\n"
+    }
+
+    mutating func visitTableHead(_ tableHead: Table.Head) {
+        result += "<thead><tr>"
+        inTableHead = true
+        column = 0
+        descendInto(tableHead)
+        inTableHead = false
+        result += "</tr></thead>\n"
+    }
+
+    mutating func visitTableBody(_ tableBody: Table.Body) {
+        guard !tableBody.isEmpty else { return }
+        result += "<tbody>\n"
+        descendInto(tableBody)
+        result += "</tbody>\n"
+    }
+
+    mutating func visitTableRow(_ tableRow: Table.Row) {
+        result += "<tr>"
+        column = 0
+        descendInto(tableRow)
+        result += "</tr>\n"
+    }
+
+    mutating func visitTableCell(_ tableCell: Table.Cell) {
+        guard tableCell.colspan > 0, tableCell.rowspan > 0 else { return }
+        let tag = inTableHead ? "th" : "td"
+        result += "<\(tag)"
+        if column < alignments.count, let alignment = alignments[column] {
+            let value: String
+            switch alignment {
+            case .left: value = "left"
+            case .center: value = "center"
+            case .right: value = "right"
+            }
+            result += " style=\"text-align:\(value)\""
+        }
+        column += 1
+        if tableCell.rowspan > 1 { result += " rowspan=\"\(tableCell.rowspan)\"" }
+        if tableCell.colspan > 1 { result += " colspan=\"\(tableCell.colspan)\"" }
+        result += ">"
+        descendInto(tableCell)
+        result += "</\(tag)>"
+    }
+
+    // MARK: Inlines
+
+    mutating func visitText(_ text: Text) {
+        result += escape(text.string)
+    }
+
+    mutating func visitInlineCode(_ inlineCode: InlineCode) {
+        result += "<code>\(escape(inlineCode.code))</code>"
+    }
+
+    mutating func visitEmphasis(_ emphasis: Emphasis) { wrap("em", emphasis) }
+    mutating func visitStrong(_ strong: Strong) { wrap("strong", strong) }
+    mutating func visitStrikethrough(_ strikethrough: Strikethrough) { wrap("del", strikethrough) }
+
+    mutating func visitInlineHTML(_ inlineHTML: InlineHTML) {
+        result += escape(inlineHTML.rawHTML)
+    }
+
+    mutating func visitLineBreak(_ lineBreak: LineBreak) {
+        result += "<br>\n"
+    }
+
+    mutating func visitSoftBreak(_ softBreak: SoftBreak) {
+        result += "\n"
+    }
+
+    mutating func visitLink(_ link: Link) {
+        result += "<a href=\"\(MarkdownHTML.safeURL(link.destination))\""
+        if let title = link.title, !title.isEmpty { result += " title=\"\(escape(title))\"" }
+        result += ">"
+        descendInto(link)
+        result += "</a>"
+    }
+
+    mutating func visitImage(_ image: Image) {
+        result += "<img src=\"\(MarkdownHTML.safeURL(image.source))\" alt=\"\(escape(image.plainText))\""
+        if let title = image.title, !title.isEmpty { result += " title=\"\(escape(title))\"" }
+        result += ">"
+    }
+
+    mutating func visitSymbolLink(_ symbolLink: SymbolLink) {
+        if let destination = symbolLink.destination { result += "<code>\(escape(destination))</code>" }
+    }
+
+    mutating func visitInlineAttributes(_ attributes: InlineAttributes) {
+        descendInto(attributes)
+    }
+
+    mutating func visitCustomInline(_ customInline: CustomInline) {
+        result += escape(customInline.text)
     }
 }

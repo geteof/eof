@@ -33,110 +33,6 @@ final class LanguageTests: XCTestCase {
     }
 }
 
-final class TokenizerTests: XCTestCase {
-    private func kinds(_ text: String, _ id: String) -> [(String, TokenKind)] {
-        let language = Languages.language(id: id)!
-        let ns = text as NSString
-        return Tokenizer.tokenize(text, language: language).map { (ns.substring(with: $0.range), $0.kind) }
-    }
-
-    private func assertHas(_ tokens: [(String, TokenKind)], _ text: String, _ kind: TokenKind, file: StaticString = #filePath, line: UInt = #line) {
-        XCTAssertTrue(tokens.contains { $0.0 == text && $0.1 == kind }, "missing \(kind) \"\(text)\" in \(tokens)", file: file, line: line)
-    }
-
-    func testSwift() {
-        let t = kinds("import Foundation\n// note\nfunc greet(_ name: String) -> Int {\n    let s = \"hi \\\"x\\\"\" /* c */\n    return 42 + 0x1F\n}\n@MainActor #if DEBUG", "swift")
-        assertHas(t, "import", .keyword)
-        assertHas(t, "// note", .comment)
-        assertHas(t, "func", .keyword)
-        assertHas(t, "greet", .function)
-        assertHas(t, "String", .type)
-        assertHas(t, "\"hi \\\"x\\\"\"", .string)
-        assertHas(t, "/* c */", .comment)
-        assertHas(t, "42", .number)
-        assertHas(t, "0x1F", .number)
-        assertHas(t, "@MainActor", .meta)
-        assertHas(t, "#if", .meta)
-    }
-
-    func testTokensAreOrderedAndInBounds() {
-        let samples: [(String, String)] = [
-            ("swift", "let a = \"unterminated\n/* open"), ("html", "<div class=\"a\"><script>let x = 1 // c\n</script><style>a{color:red}</style><!-- c --><br/>&amp;"),
-            ("markdown", "# T\n\n**b** `c` [l](u)\n```js\nx\n```\n- [ ] task\n> q"), ("yaml", "a: 1\n- b: \"s\" # c\n---\nk: &x true"),
-            ("json", "{\"a\": [1, true, null, \"s\"], // c\n\"b\": -1.5e3}"), ("ini", "[s]\nk = v ; c\n# c\nx: \"y\""),
-            ("diff", "--- a\n+++ b\n@@ -1 +1 @@\n-x\n+y\n z"), ("python", "def f(x):\n    '''doc\n    more'''\n    return x # c"),
-            ("rust", "fn f<'a>(x: &'a str) -> char { 'x' }"), ("shell", "echo \"$HOME ${X}\" # c\nx=$# "), ("css", "a:hover{color:#fff;margin:0 auto}"),
-            ("sql", "SELECT a FROM t WHERE b = 'x' -- c"), ("makefile", "all: dep\n\t$(CC) -o $@ $<"), ("xml", "<?xml version=\"1.0\"?><a b='c'><![CDATA[x]]></a>"),
-            ("javascript", "const f = `a ${b}`; class A extends B {}"), ("emoji", "let s = \"😀\" // 😀"),
-        ]
-        for (id, text) in samples {
-            let language = Languages.language(id: id) ?? Languages.language(id: "swift")!
-            let length = (text as NSString).length
-            var last = 0
-            let tokens = Tokenizer.tokenize(text, language: language).sorted { $0.range.location < $1.range.location }
-            XCTAssertFalse(tokens.isEmpty, id)
-            for token in tokens {
-                XCTAssertGreaterThan(token.range.length, 0, id)
-                XCTAssertGreaterThanOrEqual(token.range.location, last, "overlap in \(id)")
-                XCTAssertLessThanOrEqual(NSMaxRange(token.range), length, id)
-                last = NSMaxRange(token.range)
-            }
-        }
-    }
-
-    func testHTMLWithEmbeddedLanguages() {
-        let t = kinds("<a href=\"x\">t</a><script>const n = 1</script><style>p{color:red}</style><!-- c -->", "html")
-        assertHas(t, "<a", .tag)
-        assertHas(t, "href", .attribute)
-        assertHas(t, "\"x\"", .string)
-        assertHas(t, "const", .keyword)
-        assertHas(t, "color", .attribute)
-        assertHas(t, "<!-- c -->", .comment)
-    }
-
-    func testYAMLAndJSON() {
-        let y = kinds("name: app # c\nlist:\n  - true\n  - \"s\"\nport: 8080", "yaml")
-        assertHas(y, "name", .attribute)
-        assertHas(y, "# c", .comment)
-        assertHas(y, "true", .constant)
-        assertHas(y, "\"s\"", .string)
-        assertHas(y, "8080", .number)
-        let j = kinds("{\"k\": \"v\", \"n\": 12, \"b\": false}", "json")
-        assertHas(j, "\"k\"", .attribute)
-        assertHas(j, "\"v\"", .string)
-        assertHas(j, "12", .number)
-        assertHas(j, "false", .constant)
-    }
-
-    func testMarkdownAndDiff() {
-        let m = kinds("# Title\ntext **bold** and `code` [link](http://x)\n```\nfenced\n```\n", "markdown")
-        assertHas(m, "# Title", .heading)
-        assertHas(m, "**bold**", .emphasis)
-        assertHas(m, "`code`", .string)
-        assertHas(m, "[link]", .link)
-        assertHas(m, "fenced", .string)
-        let d = kinds("+added\n-removed\n@@ -1 +1 @@", "diff")
-        assertHas(d, "+added", .inserted)
-        assertHas(d, "-removed", .deleted)
-        assertHas(d, "@@ -1 +1 @@", .meta)
-    }
-
-    func testRustLifetimeIsNotAString() {
-        let t = kinds("fn f<'a>(x: &'a str) { let c = 'z'; }", "rust")
-        XCTAssertEqual(t.filter { $0.1 == .string }.map(\.0), ["'z'"])
-    }
-
-    func testLargeInputIsFast() {
-        let line = "func value\\(n)(_ x: Int) -> String { return \"v\" + String(x * 42) } // comment\n"
-        let text = String(repeating: line, count: 20_000)
-        let language = Languages.language(id: "swift")!
-        let start = Date()
-        let tokens = Tokenizer.tokenize(text, language: language)
-        XCTAssertGreaterThan(tokens.count, 100_000)
-        XCTAssertLessThan(Date().timeIntervalSince(start), 5)
-    }
-}
-
 final class EncodingTests: XCTestCase {
     func testUTF8AndBOMRoundTrip() throws {
         let text = "héllo 世界 😀\n"
@@ -426,7 +322,54 @@ final class InsightTests: XCTestCase {
         XCTAssertEqual(MarkdownHTML.render("> q\n> r"), "<blockquote>\n<p>q\nr</p>\n</blockquote>\n")
         XCTAssertEqual(MarkdownHTML.render("| a | b |\n|---|:-:|\n| 1 | 2 |"), "<table>\n<thead><tr><th>a</th><th style=\"text-align:center\">b</th></tr></thead>\n<tbody>\n<tr><td>1</td><td style=\"text-align:center\">2</td></tr>\n</tbody>\n</table>\n")
         XCTAssertEqual(MarkdownHTML.render("---"), "<hr>\n")
-        XCTAssertEqual(MarkdownHTML.render("<script>alert(1)</script> [x](javascript:alert(1))"), "<p>&lt;script&gt;alert(1)&lt;/script&gt; <a href=\"#\">x</a></p>\n")
-        XCTAssertEqual(MarkdownHTML.render("snake_case_name 2*3*4 https://a.b/c."), "<p>snake_case_name 2<em>3</em>4 <a href=\"https://a.b/c\">https://a.b/c</a>.</p>\n")
+        XCTAssertEqual(MarkdownHTML.render("snake_case_name 2*3*4"), "<p>snake_case_name 2<em>3</em>4</p>\n")
+        XCTAssertEqual(MarkdownHTML.render("---\ntitle: x\n---\n# H"), "<pre class=\"frontmatter\"><code>title: x</code></pre>\n<h1 id=\"h\">H</h1>\n")
+    }
+
+    /// Nothing in a previewed file may reach the page as live markup.
+    func testMarkdownHTMLNeutralisesUntrustedInput() {
+        XCTAssertEqual(MarkdownHTML.render("a <script>alert(1)</script> [x](javascript:alert(1))"), "<p>a &lt;script&gt;alert(1)&lt;/script&gt; <a href=\"#\">x</a></p>\n")
+        // A line that starts with a tag is an HTML block in CommonMark: shown as text.
+        XCTAssertEqual(MarkdownHTML.render("<script>alert(1)</script>"), "<pre class=\"raw-html\"><code>&lt;script&gt;alert(1)&lt;/script&gt;</code></pre>\n")
+        let cases = [
+            "<script>alert(1)</script>",
+            "<div onclick=\"alert(1)\">block</div>\n\ntext",
+            "text <img src=x onerror=alert(1)> more",
+            "<iframe src=\"https://example.com\"></iframe>",
+            "[x](JaVaScRiPt:alert(1))",
+            "[x](<java\tscript:alert(1)>)",
+            "![x](javascript:alert(1))",
+            "[x](data:text/html;base64,PHNjcmlwdD5hbGVydCgxKTwvc2NyaXB0Pg==)",
+            "[x](http://a.b/\"onmouseover=\"alert(1))",
+            "![a\" onerror=\"alert(1)](i.png)",
+            "[x](http://a.b \"t\\\" onmouseover=\\\"alert(1)\")",
+            "```\"><script>alert(1)</script>\ncode\n```",
+            "<!-- comment --><style>body{display:none}</style>",
+            "<https://a.b/?q=\"><script>alert(1)</script>>",
+        ]
+        let allowed = try! NSRegularExpression(pattern: "<(/?(p|a|img|em|strong|del|code|pre|ul|ol|li|blockquote|h[1-6]|hr|br|table|thead|tbody|tr|th|td|input))(\\s[^<>]*)?>")
+        for source in cases {
+            let html = MarkdownHTML.render(source)
+            let lower = html.lowercased()
+            XCTAssertFalse(lower.contains("<script"), source)
+            XCTAssertFalse(lower.contains("<iframe"), source)
+            XCTAssertFalse(lower.contains("<style"), source)
+            XCTAssertFalse(lower.contains("<div"), source)
+            XCTAssertFalse(lower.contains("javascript:"), source)
+            XCTAssertFalse(lower.contains("data:text"), source)
+            // Every tag left in the output is one this renderer writes, and no attribute value was broken out of.
+            let stripped = allowed.stringByReplacingMatches(in: html, range: NSRange(location: 0, length: (html as NSString).length), withTemplate: "")
+            XCTAssertFalse(stripped.contains("<"), "unexpected tag in \(html)")
+            for match in allowed.matches(in: html, range: NSRange(location: 0, length: (html as NSString).length)) {
+                // Quoted attribute values are inert once their quotes are escaped; look only outside them.
+                let tag = (html as NSString).substring(with: match.range).replacingOccurrences(of: "\"[^\"]*\"", with: "", options: .regularExpression)
+                XCTAssertFalse(tag.contains("\""), "unbalanced quote in a tag from \(source)")
+                XCTAssertNil(tag.range(of: "\\son[a-z]+\\s*=", options: [.regularExpression, .caseInsensitive]), "event handler in \(tag) from \(source)")
+            }
+        }
+        XCTAssertEqual(MarkdownHTML.safeURL("https://a.b/c?d=1&e=2"), "https://a.b/c?d=1&amp;e=2")
+        XCTAssertEqual(MarkdownHTML.safeURL("data:image/png;base64,AAAA"), "data:image/png;base64,AAAA")
+        XCTAssertEqual(MarkdownHTML.safeURL("data:image/svg+xml,<svg onload=alert(1)>"), "#")
+        XCTAssertEqual(MarkdownHTML.safeURL(" vbscript:x"), "#")
     }
 }

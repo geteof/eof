@@ -99,6 +99,7 @@ struct PreviewView: UIViewRepresentable {
     <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src https: http: data:; style-src 'unsafe-inline'">
     <style>
     :root { color-scheme: light dark; --text: #1f2328; --muted: #656d76; --border: #d0d7de; --code: #f3f5f8; --link: #0a66d8; }
     @media (prefers-color-scheme: dark) { :root { --text: #dcdfe4; --muted: #8b949e; --border: #30363d; --code: #1f232b; --link: #6cb6ff; } }
@@ -121,6 +122,8 @@ struct PreviewView: UIViewRepresentable {
     hr { border: none; border-top: 1px solid var(--border); margin: 1.6em 0; }
     ul, ol { padding-left: 1.6em; }
     li { margin: 0.2em 0; }
+    pre.raw-html, pre.frontmatter { color: var(--muted); }
+    li > p { margin: 0.3em 0; }
     li > input[type=checkbox] { margin: 0 0.4em 0 -1.3em; }
     li:has(> input[type=checkbox]) { list-style: none; }
     </style>
