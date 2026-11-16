@@ -159,9 +159,9 @@ struct BrowserView: View {
             let wide = proxy.size.width >= 600
             HStack(spacing: 0) {
                 NavigationStack(path: $path) {
-                    FolderPage(url: root, root: root, wide: wide, selection: $selection, open: open, popTo: popTo)
+                    FolderPage(url: root, root: root, wide: wide, selection: $selection, open: open, popTo: popTo, push: { path.append($0) })
                         .navigationDestination(for: URL.self) { folder in
-                            FolderPage(url: folder, root: root, wide: wide, selection: $selection, open: open, popTo: popTo)
+                            FolderPage(url: folder, root: root, wide: wide, selection: $selection, open: open, popTo: popTo, push: { path.append($0) })
                         }
                 }
                 .frame(width: wide ? min(max(300, proxy.size.width * 0.44), 460) : nil)
@@ -203,33 +203,43 @@ private struct FolderPage: View {
     @Binding var selection: FileEntry?
     let open: (URL) -> Void
     let popTo: (URL) -> Void
+    let push: (URL) -> Void
 
     @EnvironmentObject private var model: AppModel
     @EnvironmentObject private var settings: AppSettings
     @StateObject private var listing: FolderListing
     @AppStorage("browserSort") private var sort = BrowserSort.name
+    @AppStorage("browserGrid") private var showsGrid = false
     @State private var query = ""
     @State private var prompt: NamePrompt?
     @State private var promptTarget: FileEntry?
     @State private var name = ""
     @State private var info: FileEntry?
-    @State private var deleting: FileEntry?
     @State private var showFolderSearch = false
     /// Shown here, not through the app-wide alert, which sits underneath the full-screen browser.
     @State private var failure: AppAlert?
+
+    // Selecting several items
+    @State private var isSelecting = false
+    @State private var picked: Set<URL> = []
+    // Items waiting for a confirmation or for the system's move sheet
+    @State private var deleting: [FileEntry] = []
+    @State private var moving: [URL] = []
+    @State private var isMoving = false
 
     private enum NamePrompt: Identifiable {
         case newFile, newFolder, rename
         var id: Int { hashValue }
     }
 
-    init(url: URL, root: URL, wide: Bool, selection: Binding<FileEntry?>, open: @escaping (URL) -> Void, popTo: @escaping (URL) -> Void) {
+    init(url: URL, root: URL, wide: Bool, selection: Binding<FileEntry?>, open: @escaping (URL) -> Void, popTo: @escaping (URL) -> Void, push: @escaping (URL) -> Void) {
         self.url = url
         self.root = root
         self.wide = wide
         _selection = selection
         self.open = open
         self.popTo = popTo
+        self.push = push
         _listing = StateObject(wrappedValue: FolderListing(url: url))
     }
 
@@ -237,6 +247,10 @@ private struct FolderPage: View {
         let sorted = sort.sorted(listing.entries)
         guard !query.isEmpty else { return sorted }
         return sorted.filter { $0.name.localizedCaseInsensitiveContains(query) }
+    }
+
+    private var pickedEntries: [FileEntry] {
+        listing.entries.filter { picked.contains($0.url) }
     }
 
     /// The folders from the root down to this one, for jumping back up.
@@ -252,16 +266,30 @@ private struct FolderPage: View {
     }
 
     var body: some View {
-        List {
-            if let error = listing.error {
-                Text(verbatim: error)
-                    .foregroundStyle(.secondary)
-            }
-            ForEach(shown) { entry in
-                row(entry)
+        Group {
+            if showsGrid {
+                ScrollView {
+                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 104, maximum: 150), spacing: 10)], spacing: 14) {
+                        ForEach(shown) { entry in
+                            cell(entry)
+                        }
+                    }
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 10)
+                }
+            } else {
+                List {
+                    if let error = listing.error {
+                        Text(verbatim: error)
+                            .foregroundStyle(.secondary)
+                    }
+                    ForEach(shown) { entry in
+                        row(entry)
+                    }
+                }
+                .listStyle(.plain)
             }
         }
-        .listStyle(.plain)
         .overlay {
             if listing.isLoading {
                 ProgressView()
@@ -279,9 +307,10 @@ private struct FolderPage: View {
         .navigationTitle(url.lastPathComponent)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar { toolbar }
-        .refreshable { listing.reload(showHidden: settings.showHiddenFiles) }
-        .onAppear { listing.reload(showHidden: settings.showHiddenFiles) }
-        .onChange(of: settings.showHiddenFiles) { _, hidden in listing.reload(showHidden: hidden) }
+        .toolbar(isSelecting ? .visible : .hidden, for: .bottomBar)
+        .refreshable { reload() }
+        .onAppear { reload() }
+        .onChange(of: settings.showHiddenFiles) { _, _ in reload() }
         .alert(promptTitle, isPresented: Binding(get: { prompt != nil }, set: { if !$0 { prompt = nil } }), presenting: prompt) { kind in
             TextField("Name", text: $name)
                 .textInputAutocapitalization(.never)
@@ -290,13 +319,21 @@ private struct FolderPage: View {
             Button(kind == .rename ? "Rename" : "Create") { perform(kind) }
         }
         .confirmationDialog(
-            "Delete?", isPresented: Binding(get: { deleting != nil }, set: { if !$0 { deleting = nil } }),
-            titleVisibility: .visible, presenting: deleting
-        ) { entry in
-            Button("Delete", role: .destructive) { delete(entry) }
+            deleting.count == 1 ? "Delete?" : "Delete \(deleting.count) Items?",
+            isPresented: Binding(get: { !deleting.isEmpty }, set: { if !$0 { deleting = [] } }),
+            titleVisibility: .visible
+        ) {
+            Button("Delete", role: .destructive) { delete(deleting) }
             Button("Cancel", role: .cancel) {}
-        } message: { entry in
-            Text("“\(entry.name)” will be deleted. This cannot be undone.")
+        } message: {
+            if deleting.count == 1, let entry = deleting.first {
+                Text("“\(entry.name)” will be deleted. This cannot be undone.")
+            } else {
+                Text("This cannot be undone.")
+            }
+        }
+        .fileMover(isPresented: $isMoving, files: moving) { result in
+            finishMove(result)
         }
         .sheet(item: $info) { entry in
             FileInfoSheet(entry: entry, root: root)
@@ -309,31 +346,46 @@ private struct FolderPage: View {
         }
     }
 
-    // MARK: Rows
+    // MARK: Rows and cells
 
-    @ViewBuilder
-    private func row(_ entry: FileEntry) -> some View {
-        Group {
-            if entry.isDirectory {
-                NavigationLink(value: entry.url) {
-                    EntryLabel(entry: entry, isOpen: false)
-                }
-            } else {
-                Button {
-                    if wide {
-                        selection = entry
-                    } else {
-                        open(entry.url)
-                    }
-                } label: {
-                    EntryLabel(entry: entry, isOpen: isOpen(entry))
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .simultaneousGesture(TapGesture(count: 2).onEnded { open(entry.url) })
-                .listRowBackground(wide && selection?.url == entry.url ? Color.accentColor.opacity(0.16) : nil)
-            }
+    private func tap(_ entry: FileEntry) {
+        if isSelecting {
+            if picked.contains(entry.url) { picked.remove(entry.url) } else { picked.insert(entry.url) }
+        } else if entry.isDirectory {
+            push(entry.url)
+        } else if wide {
+            selection = entry
+        } else {
+            open(entry.url)
         }
+    }
+
+    private func mark(_ entry: FileEntry) -> some View {
+        Image(systemName: picked.contains(entry.url) ? "checkmark.circle.fill" : "circle")
+            .font(.title3)
+            .foregroundStyle(picked.contains(entry.url) ? AnyShapeStyle(.tint) : AnyShapeStyle(.tertiary))
+    }
+
+    private func row(_ entry: FileEntry) -> some View {
+        Button {
+            tap(entry)
+        } label: {
+            HStack(spacing: 10) {
+                if isSelecting { mark(entry) }
+                EntryLabel(entry: entry, isOpen: isOpen(entry))
+                if entry.isDirectory, !isSelecting {
+                    Image(systemName: "chevron.right")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.tertiary)
+                }
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .simultaneousGesture(TapGesture(count: 2).onEnded {
+            if !isSelecting, !entry.isDirectory { open(entry.url) }
+        })
+        .listRowBackground(!isSelecting && wide && selection?.url == entry.url ? Color.accentColor.opacity(0.16) : nil)
         .contextMenu {
             actions(for: entry)
         } preview: {
@@ -341,7 +393,7 @@ private struct FolderPage: View {
         }
         .swipeActions(edge: .trailing) {
             Button(role: .destructive) {
-                deleting = entry
+                deleting = [entry]
             } label: {
                 Label("Delete", systemImage: "trash")
             }
@@ -359,6 +411,31 @@ private struct FolderPage: View {
                 Label("Get Info", systemImage: "info.circle")
             }
             .tint(.blue)
+        }
+    }
+
+    private func cell(_ entry: FileEntry) -> some View {
+        Button {
+            tap(entry)
+        } label: {
+            GridCell(entry: entry, isOpen: isOpen(entry), isHighlighted: !isSelecting && wide && selection?.url == entry.url)
+                .overlay(alignment: .topTrailing) {
+                    if isSelecting {
+                        mark(entry)
+                            .background(Color(uiColor: .systemBackground), in: Circle())
+                            .padding(6)
+                    }
+                }
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .simultaneousGesture(TapGesture(count: 2).onEnded {
+            if !isSelecting, !entry.isDirectory { open(entry.url) }
+        })
+        .contextMenu {
+            actions(for: entry)
+        } preview: {
+            FilePeekCard(entry: entry)
         }
     }
 
@@ -388,15 +465,26 @@ private struct FolderPage: View {
         } label: {
             Label("Rename…", systemImage: "pencil")
         }
+        Button {
+            beginMove([entry.url])
+        } label: {
+            Label("Move…", systemImage: "folder")
+        }
         if !entry.isDirectory {
             Button {
-                duplicate(entry)
+                duplicate([entry])
             } label: {
                 Label("Duplicate", systemImage: "plus.square.on.square")
             }
         }
+        Button {
+            isSelecting = true
+            picked = [entry.url]
+        } label: {
+            Label("Select", systemImage: "checkmark.circle")
+        }
         Button(role: .destructive) {
-            deleting = entry
+            deleting = [entry]
         } label: {
             Label("Delete", systemImage: "trash")
         }
@@ -405,78 +493,142 @@ private struct FolderPage: View {
     @ToolbarContentBuilder
     private var toolbar: some ToolbarContent {
         ToolbarItem(placement: .topBarLeading) {
-            if url == root {
+            if isSelecting {
+                Button(picked.count == shown.count && !shown.isEmpty ? "Deselect All" : "Select All") {
+                    picked = picked.count == shown.count ? [] : Set(shown.map(\.url))
+                }
+            } else if url == root {
                 Button("Done") { model.showBrowser = false }
             }
         }
         ToolbarItem(placement: .principal) {
-            // The title doubles as a menu of the folders above this one.
-            Menu {
-                ForEach(ancestors, id: \.self) { folder in
-                    Button {
-                        popTo(folder)
-                    } label: {
-                        Label(folder.lastPathComponent, systemImage: "folder")
+            if isSelecting {
+                Text("\(picked.count) Selected")
+                    .font(.headline)
+            } else {
+                // The title doubles as a menu of the folders above this one.
+                Menu {
+                    ForEach(ancestors, id: \.self) { folder in
+                        Button {
+                            popTo(folder)
+                        } label: {
+                            Label(folder.lastPathComponent, systemImage: "folder")
+                        }
                     }
-                }
-            } label: {
-                HStack(spacing: 4) {
-                    Text(verbatim: url.lastPathComponent)
-                        .font(.headline)
-                        .lineLimit(1)
-                        .truncationMode(.middle)
-                    if !ancestors.isEmpty {
-                        Image(systemName: "chevron.down")
-                            .font(.caption2.weight(.bold))
+                } label: {
+                    HStack(spacing: 4) {
+                        Text(verbatim: url.lastPathComponent)
+                            .font(.headline)
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                        if !ancestors.isEmpty {
+                            Image(systemName: "chevron.down")
+                                .font(.caption2.weight(.bold))
+                        }
                     }
+                    .foregroundStyle(.primary)
                 }
-                .foregroundStyle(.primary)
+                .disabled(ancestors.isEmpty)
             }
-            .disabled(ancestors.isEmpty)
         }
         ToolbarItem(placement: .primaryAction) {
-            Menu {
-                Section {
-                    Button {
-                        name = ""
-                        prompt = .newFile
-                    } label: {
-                        Label("New File…", systemImage: "doc.badge.plus")
-                    }
-                    Button {
-                        name = ""
-                        prompt = .newFolder
-                    } label: {
-                        Label("New Folder…", systemImage: "folder.badge.plus")
-                    }
+            if isSelecting {
+                Button("Done") {
+                    isSelecting = false
+                    picked = []
                 }
-                Section {
-                    Picker("Sort By", selection: $sort) {
-                        ForEach(BrowserSort.allCases) { Text($0.title).tag($0) }
+                .fontWeight(.semibold)
+            } else {
+                Menu {
+                    Section {
+                        Button {
+                            isSelecting = true
+                        } label: {
+                            Label("Select", systemImage: "checkmark.circle")
+                        }
+                        Button {
+                            name = ""
+                            prompt = .newFile
+                        } label: {
+                            Label("New File…", systemImage: "doc.badge.plus")
+                        }
+                        Button {
+                            name = ""
+                            prompt = .newFolder
+                        } label: {
+                            Label("New Folder…", systemImage: "folder.badge.plus")
+                        }
                     }
-                    Toggle(isOn: $settings.showHiddenFiles) {
-                        Label("Show Hidden Files", systemImage: "eye")
+                    Section {
+                        Picker("View", selection: $showsGrid) {
+                            Label("List", systemImage: "list.bullet").tag(false)
+                            Label("Grid", systemImage: "square.grid.2x2").tag(true)
+                        }
+                        Picker("Sort By", selection: $sort) {
+                            ForEach(BrowserSort.allCases) { Text($0.title).tag($0) }
+                        }
+                        Toggle(isOn: $settings.showHiddenFiles) {
+                            Label("Show Hidden Files", systemImage: "eye")
+                        }
                     }
+                    Section {
+                        Button {
+                            showFolderSearch = true
+                        } label: {
+                            Label("Find in Folder…", systemImage: "doc.text.magnifyingglass")
+                        }
+                        Button {
+                            info = FileEntry.load(url, isDirectory: true)
+                        } label: {
+                            Label("Folder Info", systemImage: "info.circle")
+                        }
+                    }
+                } label: {
+                    Label("More", systemImage: "ellipsis.circle")
                 }
-                Section {
-                    Button {
-                        showFolderSearch = true
-                    } label: {
-                        Label("Find in Folder…", systemImage: "doc.text.magnifyingglass")
-                    }
-                    Button {
-                        info = FileEntry.load(url, isDirectory: true)
-                    } label: {
-                        Label("Folder Info", systemImage: "info.circle")
-                    }
+            }
+        }
+        ToolbarItemGroup(placement: .bottomBar) {
+            if isSelecting {
+                Button {
+                    beginMove(Array(picked))
+                } label: {
+                    Label("Move", systemImage: "folder")
                 }
-            } label: {
-                Label("More", systemImage: "ellipsis.circle")
+                .disabled(picked.isEmpty)
+                Spacer()
+                ShareLink(items: Array(picked)) {
+                    Label("Share", systemImage: "square.and.arrow.up")
+                }
+                .disabled(picked.isEmpty)
+                Spacer()
+                Button {
+                    duplicate(pickedEntries.filter { !$0.isDirectory })
+                } label: {
+                    Label("Duplicate", systemImage: "plus.square.on.square")
+                }
+                .disabled(pickedEntries.allSatisfy(\.isDirectory))
+                Spacer()
+                Button(role: .destructive) {
+                    deleting = pickedEntries
+                } label: {
+                    Label("Delete", systemImage: "trash")
+                }
+                .disabled(picked.isEmpty)
             }
         }
     }
 
     // MARK: Actions
+
+    private func reload() {
+        listing.reload(showHidden: settings.showHiddenFiles)
+    }
+
+    private func endSelection() {
+        isSelecting = false
+        picked = []
+    }
 
     private func isOpen(_ entry: FileEntry) -> Bool {
         model.documents.contains { $0.url?.standardizedFileURL == entry.url.standardizedFileURL }
@@ -501,6 +653,15 @@ private struct FolderPage: View {
         failure = AppAlert(title: String(localized: "Could Not Complete"), message: error.localizedDescription)
     }
 
+    /// Open documents at or below `url`.
+    private func documents(under url: URL) -> [EditorDocument] {
+        let prefix = url.standardizedFileURL.path
+        return model.documents.filter { document in
+            guard let path = document.url?.standardizedFileURL.path else { return false }
+            return path == prefix || path.hasPrefix(prefix + "/")
+        }
+    }
+
     private func perform(_ kind: NamePrompt) {
         let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty, !trimmed.contains("/") else { return }
@@ -511,67 +672,156 @@ private struct FolderPage: View {
                 let target = url.appendingPathComponent(trimmed)
                 guard !manager.fileExists(atPath: target.path) else { throw FileAccess.Failure(message: String(localized: "An item with that name already exists.")) }
                 try Data().write(to: target)
-                listing.reload(showHidden: settings.showHiddenFiles)
+                reload()
                 open(target)
             case .newFolder:
                 try manager.createDirectory(at: url.appendingPathComponent(trimmed), withIntermediateDirectories: false)
-                listing.reload(showHidden: settings.showHiddenFiles)
+                reload()
             case .rename:
                 guard let entry = promptTarget else { return }
                 let target = entry.url.deletingLastPathComponent().appendingPathComponent(trimmed)
                 guard target != entry.url else { return }
                 guard !manager.fileExists(atPath: target.path) else { throw FileAccess.Failure(message: String(localized: "An item with that name already exists.")) }
-                let openDocument = model.documents.first { $0.url?.standardizedFileURL == entry.url.standardizedFileURL }
-                openDocument?.autosave()
-                try manager.moveItem(at: entry.url, to: target)
-                if let openDocument {
-                    openDocument.adopt(url: target)
-                    model.saveSession()
-                }
+                try relocate(entry.url, to: target) { try manager.moveItem(at: entry.url, to: target) }
                 if selection?.url == entry.url { selection = FileEntry.load(target) }
-                listing.reload(showHidden: settings.showHiddenFiles)
+                reload()
             }
         } catch {
             fail(error)
         }
     }
 
-    private func duplicate(_ entry: FileEntry) {
-        let folder = entry.url.deletingLastPathComponent()
-        let base = entry.url.deletingPathExtension().lastPathComponent
-        let ext = entry.fileExtension
-        var index = 1
-        var target: URL
-        repeat {
-            let suffix = index == 1 ? String(localized: " copy") : String(localized: " copy \(index)")
-            target = folder.appendingPathComponent(base + suffix + (ext.isEmpty ? "" : "." + ext))
-            index += 1
-        } while FileManager.default.fileExists(atPath: target.path) && index < 500
+    /// Runs `move` and keeps open documents pointing at their files: one that was `old` itself, or
+    /// inside it when `old` is a folder.
+    private func relocate(_ old: URL, to new: URL, move: () throws -> Void) throws {
+        let affected = documents(under: old)
+        affected.forEach { $0.autosave() }
+        let oldPath = old.standardizedFileURL.path
+        let targets = affected.map { document -> URL in
+            let path = document.url!.standardizedFileURL.path
+            let rest = String(path.dropFirst(oldPath.count))
+            return rest.isEmpty ? new : new.appendingPathComponent(String(rest.dropFirst()))
+        }
+        try move()
+        for (document, target) in zip(affected, targets) { document.adopt(url: target) }
+        if !affected.isEmpty { model.saveSession() }
+    }
+
+    private func duplicate(_ entries: [FileEntry]) {
         do {
-            try FileManager.default.copyItem(at: entry.url, to: target)
-            listing.reload(showHidden: settings.showHiddenFiles)
+            for entry in entries {
+                let folder = entry.url.deletingLastPathComponent()
+                let base = entry.url.deletingPathExtension().lastPathComponent
+                let ext = entry.fileExtension
+                var index = 1
+                var target: URL
+                repeat {
+                    let suffix = index == 1 ? String(localized: " copy") : String(localized: " copy \(index)")
+                    target = folder.appendingPathComponent(base + suffix + (ext.isEmpty ? "" : "." + ext))
+                    index += 1
+                } while FileManager.default.fileExists(atPath: target.path) && index < 500
+                try FileManager.default.copyItem(at: entry.url, to: target)
+            }
         } catch {
             fail(error)
         }
+        endSelection()
+        reload()
     }
 
-    private func delete(_ entry: FileEntry) {
+    private func delete(_ entries: [FileEntry]) {
         do {
-            let prefix = entry.url.standardizedFileURL.path
-            // Close what is about to disappear, including files inside a deleted folder.
-            for document in model.documents {
-                guard let path = document.url?.standardizedFileURL.path else { continue }
-                if path == prefix || path.hasPrefix(prefix + "/") {
+            for entry in entries {
+                // Close what is about to disappear, including files inside a deleted folder.
+                for document in documents(under: entry.url) {
                     document.isDirty = false
                     model.close(document)
                 }
+                try FileManager.default.removeItem(at: entry.url)
+                if selection?.url == entry.url { selection = nil }
             }
-            try FileManager.default.removeItem(at: entry.url)
-            if selection?.url == entry.url { selection = nil }
-            listing.reload(showHidden: settings.showHiddenFiles)
         } catch {
             fail(error)
         }
+        deleting = []
+        endSelection()
+        reload()
+    }
+
+    /// Hands the items to the system's move sheet, which can put them in any folder the user can reach.
+    private func beginMove(_ urls: [URL]) {
+        guard !urls.isEmpty else { return }
+        documents(underAny: urls).forEach { $0.autosave() }
+        moving = urls
+        isMoving = true
+    }
+
+    private func documents(underAny urls: [URL]) -> [EditorDocument] {
+        urls.flatMap { documents(under: $0) }
+    }
+
+    private func finishMove(_ result: Result<[URL], Error>) {
+        switch result {
+        case .success(let destinations):
+            // The sheet returns the new locations in the order the items were given.
+            for (old, new) in zip(moving, destinations) {
+                let oldPath = old.standardizedFileURL.path
+                for document in documents(under: old) {
+                    let rest = String(document.url!.standardizedFileURL.path.dropFirst(oldPath.count))
+                    document.adopt(url: rest.isEmpty ? new : new.appendingPathComponent(String(rest.dropFirst())))
+                }
+                if selection?.url == old { selection = nil }
+            }
+            model.saveSession()
+        case .failure(let error):
+            // Cancelling the sheet is not an error worth showing.
+            if (error as NSError).code != NSUserCancelledError { fail(error) }
+        }
+        moving = []
+        endSelection()
+        reload()
+    }
+}
+
+/// One item in the grid: a thumbnail or a large icon above the name.
+private struct GridCell: View {
+    let entry: FileEntry
+    let isOpen: Bool
+    let isHighlighted: Bool
+
+    var body: some View {
+        VStack(spacing: 6) {
+            Group {
+                if !entry.isDirectory, FileKind.canPreview(entry.url) {
+                    Thumbnail(url: entry.url)
+                        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                } else {
+                    Image(systemName: entry.isDirectory ? "folder.fill" : FileNode.symbol(for: entry.name))
+                        .font(.system(size: 38, weight: .regular))
+                        .foregroundStyle(entry.isDirectory ? Color.accentColor : FileNode.tint(for: entry.name))
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .background(
+                            (entry.isDirectory ? Color.accentColor : FileNode.tint(for: entry.name)).opacity(0.12),
+                            in: RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        )
+                }
+            }
+            .frame(height: 78)
+            Text(verbatim: entry.name)
+                .font(.caption)
+                .fontWeight(isOpen ? .semibold : .regular)
+                .foregroundStyle(.primary)
+                .lineLimit(3)
+                .multilineTextAlignment(.center)
+                .truncationMode(.middle)
+            Text(verbatim: entry.isDirectory ? entry.summary : entry.sizeText)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+        }
+        .padding(6)
+        .frame(maxWidth: .infinity, alignment: .top)
+        .background(isHighlighted ? Color.accentColor.opacity(0.16) : Color.clear, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
     }
 }
 
