@@ -1,6 +1,9 @@
 import EOFCore
 import Foundation
 import Runestone
+import TreeSitterDockerfile
+import TreeSitterIni
+import TreeSitterKotlin
 import TreeSitterSwiftRunestone
 import TreeSitterObjectiveCRunestone
 import TreeSitterCRunestone
@@ -61,6 +64,7 @@ enum Grammars {
         "markdown": "markdown", "shell": "bash", "sql": "sql", "lua": "lua", "diff": "diff", "dart": "dart", "scala": "scala",
         "perl": "perl", "r": "r", "haskell": "haskell", "elixir": "elixir", "protobuf": "proto", "terraform": "hcl",
         "tex": "latex", "cmake": "cmake", "nix": "nix", "ocaml": "ocaml", "elm": "elm", "julia": "julia", "pascal": "pascal",
+        "kotlin": "kotlin", "dockerfile": "dockerfile", "ini": "ini",
     ]
 
     /// File extensions that need a different grammar from the rest of their language.
@@ -74,6 +78,7 @@ enum Grammars {
         "typescript": "typeScript", "sh": "bash", "shell": "bash", "zsh": "bash", "bash": "bash", "py": "python",
         "yml": "yaml", "objc": "objectiveC", "objective-c": "objectiveC", "c++": "cpp", "c#": "cSharp", "cs": "cSharp",
         "golang": "go", "rb": "ruby", "rs": "rust", "md": "markdown", "tex": "latex", "proto": "proto", "tf": "hcl",
+        "kt": "kotlin", "kotlin": "kotlin", "docker": "dockerfile", "dockerfile": "dockerfile", "ini": "ini", "properties": "ini",
     ]
 
     static func hasGrammar(for language: Language) -> Bool {
@@ -156,8 +161,16 @@ enum Grammars {
         case "elm": return .elm
         case "julia": return .julia
         case "pascal": return .pascal
+        // Grammars from their own repositories, with the highlight queries shipped in this app.
+        case "kotlin": return TreeSitterLanguage(tree_sitter_kotlin(), highlightsQuery: query("kotlin"))
+        case "dockerfile": return TreeSitterLanguage(UnsafePointer(tree_sitter_dockerfile()), highlightsQuery: query("dockerfile"))
+        case "ini": return TreeSitterLanguage(tree_sitter_ini(), highlightsQuery: query("ini"))
         default: return nil
         }
+    }
+
+    private static func query(_ name: String) -> TreeSitterLanguage.Query? {
+        Bundle.main.url(forResource: name, withExtension: "scm").flatMap { TreeSitterLanguage.Query(contentsOf: $0) }
     }
 }
 

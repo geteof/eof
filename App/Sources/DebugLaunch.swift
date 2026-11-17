@@ -216,6 +216,8 @@ extension DebugLaunch {
         }
         check("undoAll", editor.text == original, "steps=\(steps) \(head())")
 
+        // A syntax node at the start proves the grammar loaded and parsed the text.
+        lines.append("syntaxNode=\(editor.textView.syntaxNode(at: 0)?.type ?? "nil")")
         lines.append("language=\(document.language.id) grammar=\(Grammars.hasGrammar(for: document.language)) indent=\(document.indent.usesTabs ? "tabs" : "spaces")\(document.indent.width)")
         let failures = lines.filter { $0.hasPrefix("FAIL") }.count
         lines.append("RESULT \(failures == 0 ? "ALL PASSED" : "\(failures) FAILED")")

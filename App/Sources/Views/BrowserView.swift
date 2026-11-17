@@ -399,7 +399,7 @@ private struct FolderPage: View {
         .simultaneousGesture(TapGesture(count: 2).onEnded {
             if !isSelecting, !entry.isDirectory { open(entry.url) }
         })
-        .listRowBackground(!isSelecting && wide && selection?.url == entry.url ? Color.accentColor.opacity(0.16) : nil)
+        .listRowBackground(!isSelecting && wide && selection?.url.standardizedFileURL.path == entry.url.standardizedFileURL.path ? Color.accentColor.opacity(0.16) : nil)
         .contextMenu {
             actions(for: entry)
         } preview: {
@@ -432,7 +432,7 @@ private struct FolderPage: View {
         Button {
             tap(entry)
         } label: {
-            GridCell(entry: entry, isOpen: isOpen(entry), isHighlighted: !isSelecting && wide && selection?.url == entry.url)
+            GridCell(entry: entry, isOpen: isOpen(entry), isHighlighted: !isSelecting && wide && selection?.url.standardizedFileURL.path == entry.url.standardizedFileURL.path)
                 .overlay(alignment: .topTrailing) {
                     if isSelecting {
                         mark(entry)
