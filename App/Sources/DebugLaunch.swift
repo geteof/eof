@@ -13,12 +13,13 @@ import SwiftUI
 ///     -selftest         drive the editor through its commands and write Documents/selftest.txt
 ///     -browse [subfolder]  show the file browser on the folder, optionally inside a subfolder
 ///     -peek <name>      select this file in the browser's preview pane (wide screens)
+///     -ziptest          compress and extract sample files and write Documents/ziptest.txt
 ///     -layoutreport     write window, safe-area and bar geometry to Documents/layout.txt
 enum DebugLaunch {
     private static let arguments = ProcessInfo.processInfo.arguments
     private static var consumed = false
 
-    static var isActive: Bool { arguments.contains("-open") || arguments.contains("-folder") }
+    static var isActive: Bool { arguments.contains("-open") || arguments.contains("-folder") || arguments.contains("-ziptest") }
 
     private static func values(_ flag: String) -> [String] {
         arguments.indices.compactMap { index in
@@ -34,6 +35,58 @@ enum DebugLaunch {
     static func open(in model: AppModel) {
         if let folder = values("-folder").first { model.openFolder(resolve(folder), browse: arguments.contains("-browse")) }
         for path in values("-open") { model.open(resolve(path)) }
+        if arguments.contains("-ziptest") { zipTest() }
+    }
+
+    /// Runs the archive code on the sample files, in a scratch folder that is removed afterwards.
+    static func zipTest() {
+        let manager = FileManager.default
+        let documents = manager.urls(for: .documentDirectory, in: .userDomainMask)[0]
+        let scratch = documents.appendingPathComponent("ziptest-scratch")
+        var lines: [String] = []
+        func check(_ name: String, _ passed: Bool, _ detail: String = "") {
+            lines.append(passed ? "PASS \(name)" : "FAIL \(name) \(detail)")
+        }
+        do {
+            try? manager.removeItem(at: scratch)
+            try manager.createDirectory(at: scratch.appendingPathComponent("folder/inner"), withIntermediateDirectories: true)
+            let text = String(repeating: "compress me \u{4E2D}\u{6587}\n", count: 500)
+            try text.write(to: scratch.appendingPathComponent("folder/a.txt"), atomically: true, encoding: .utf8)
+            try "nested".write(to: scratch.appendingPathComponent("folder/inner/b.txt"), atomically: true, encoding: .utf8)
+            try "single".write(to: scratch.appendingPathComponent("one.md"), atomically: true, encoding: .utf8)
+
+            let folderZip = try Archives.compress([scratch.appendingPathComponent("folder")], archiveName: "Archive")
+            check("folder archive name", folderZip.lastPathComponent == "folder.zip", folderZip.lastPathComponent)
+            let listed = Archives.contents(of: folderZip)
+            let paths = (listed?.items.map(\.path) ?? []).sorted()
+            check("folder archive lists files", paths.contains("folder/a.txt") && paths.contains("folder/inner/b.txt"), paths.joined(separator: ","))
+            let zipSize = (try? folderZip.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0
+            check("deflate shrinks text", zipSize > 0 && zipSize < text.utf8.count / 2, "\(zipSize) of \(text.utf8.count)")
+
+            let fileZip = try Archives.compress([scratch.appendingPathComponent("one.md")], archiveName: "Archive")
+            check("file archive name", fileZip.lastPathComponent == "one.zip", fileZip.lastPathComponent)
+
+            let both = try Archives.compress([scratch.appendingPathComponent("one.md"), scratch.appendingPathComponent("folder")], archiveName: "Archive")
+            check("multi archive name", both.lastPathComponent == "Archive.zip", both.lastPathComponent)
+            let bothPaths = (Archives.contents(of: both)?.items.map(\.path) ?? []).sorted()
+            check("multi archive lists both", bothPaths.contains("one.md") && bothPaths.contains("folder/inner/b.txt"), bothPaths.joined(separator: ","))
+
+            try manager.removeItem(at: scratch.appendingPathComponent("folder"))
+            let extracted = try Archives.extract(folderZip)
+            check("extract folder name", extracted.lastPathComponent == "folder", extracted.lastPathComponent)
+            let restored = try? String(contentsOf: extracted.appendingPathComponent("folder/a.txt"), encoding: .utf8)
+            check("extract restores contents", restored == text, "\(restored?.count ?? -1) characters")
+            check("extract restores nested", manager.fileExists(atPath: extracted.appendingPathComponent("folder/inner/b.txt").path))
+            let again = try Archives.extract(folderZip)
+            check("second extract gets a new name", again.lastPathComponent == "folder 2", again.lastPathComponent)
+            check("unreadable archive is refused", Archives.contents(of: scratch.appendingPathComponent("one.md")) == nil)
+        } catch {
+            check("no error thrown", false, "\(error)")
+        }
+        try? manager.removeItem(at: scratch)
+        let failures = lines.filter { $0.hasPrefix("FAIL") }.count
+        lines.append("RESULT \(failures == 0 ? "ALL PASSED" : "\(failures) FAILED")")
+        try? lines.joined(separator: "\n").write(to: documents.appendingPathComponent("ziptest.txt"), atomically: true, encoding: .utf8)
     }
 
     static func applyBrowser(root: URL, path: inout [URL], selection: inout FileEntry?) {

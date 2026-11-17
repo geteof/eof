@@ -226,6 +226,8 @@ private struct FolderPage: View {
     @State private var deleting: [FileEntry] = []
     @State private var moving: [URL] = []
     @State private var isMoving = false
+    /// Shown over the list while an archive is being written or unpacked.
+    @State private var busy: String?
 
     private enum NamePrompt: Identifiable {
         case newFile, newFolder, rename
@@ -301,6 +303,18 @@ private struct FolderPage: View {
                 }
             }
         }
+        .overlay {
+            if let busy {
+                VStack(spacing: 12) {
+                    ProgressView()
+                    Text(verbatim: busy)
+                        .font(.footnote)
+                }
+                .padding(22)
+                .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+            }
+        }
+        .disabled(busy != nil)
         .searchable(text: $query, placement: .navigationBarDrawer(displayMode: .automatic), prompt: Text("Filter by Name"))
         .textInputAutocapitalization(.never)
         .autocorrectionDisabled()
@@ -477,6 +491,18 @@ private struct FolderPage: View {
                 Label("Duplicate", systemImage: "plus.square.on.square")
             }
         }
+        if Archives.isArchive(entry.url) {
+            Button {
+                extract(entry)
+            } label: {
+                Label("Extract", systemImage: "arrow.up.bin")
+            }
+        }
+        Button {
+            compress([entry.url])
+        } label: {
+            Label("Compress", systemImage: "archivebox")
+        }
         Button {
             isSelecting = true
             picked = [entry.url]
@@ -608,6 +634,13 @@ private struct FolderPage: View {
                     Label("Duplicate", systemImage: "plus.square.on.square")
                 }
                 .disabled(pickedEntries.allSatisfy(\.isDirectory))
+                Spacer()
+                Button {
+                    compress(Array(picked))
+                } label: {
+                    Label("Compress", systemImage: "archivebox")
+                }
+                .disabled(picked.isEmpty)
                 Spacer()
                 Button(role: .destructive) {
                     deleting = pickedEntries
@@ -744,6 +777,33 @@ private struct FolderPage: View {
             fail(error)
         }
         deleting = []
+        endSelection()
+        reload()
+    }
+
+    private func compress(_ urls: [URL]) {
+        guard !urls.isEmpty else { return }
+        documents(underAny: urls).forEach { $0.autosave() }
+        busy = String(localized: "Compressing…")
+        let archiveName = String(localized: "Archive")
+        DispatchQueue.global(qos: .userInitiated).async {
+            let result = Result { try Archives.compress(urls, archiveName: archiveName) }
+            DispatchQueue.main.async { finishArchive(result) }
+        }
+    }
+
+    private func extract(_ entry: FileEntry) {
+        busy = String(localized: "Extracting…")
+        let url = entry.url
+        DispatchQueue.global(qos: .userInitiated).async {
+            let result = Result { try Archives.extract(url) }
+            DispatchQueue.main.async { finishArchive(result) }
+        }
+    }
+
+    private func finishArchive(_ result: Result<URL, Error>) {
+        busy = nil
+        if case .failure(let error) = result { fail(error) }
         endSelection()
         reload()
     }
@@ -913,6 +973,8 @@ private struct FileContentPreview: View {
                         .foregroundStyle(.secondary)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else if Archives.isArchive(entry.url) {
+                ArchiveContents(url: entry.url)
             } else if FileKind.canPreview(entry.url) {
                 if live {
                     QuickLookView(url: entry.url)
@@ -940,7 +1002,7 @@ private struct FileContentPreview: View {
             }
         }
         .task(id: entry.url) {
-            guard !entry.isDirectory, !FileKind.canPreview(entry.url) else { return }
+            guard !entry.isDirectory, !FileKind.canPreview(entry.url), !Archives.isArchive(entry.url) else { return }
             let url = entry.url
             let limit = live ? 200_000 : 6000
             let result = await Task.detached { () -> (String?, Data?) in
@@ -951,6 +1013,63 @@ private struct FileContentPreview: View {
             text = result.0
             bytes = result.1
             loaded = true
+        }
+    }
+}
+
+/// The files inside a zip archive, listed without unpacking it.
+struct ArchiveContents: View {
+    let url: URL
+    @State private var items: [Archives.Item]?
+    @State private var total = 0
+    @State private var failed = false
+
+    var body: some View {
+        Group {
+            if let items {
+                List {
+                    ForEach(items) { item in
+                        HStack(spacing: 10) {
+                            Image(systemName: item.isDirectory ? "folder" : "doc")
+                                .foregroundStyle(.secondary)
+                                .frame(width: 20)
+                            Text(verbatim: item.path)
+                                .font(.system(size: 12, design: .monospaced))
+                                .lineLimit(2)
+                                .truncationMode(.middle)
+                            Spacer(minLength: 6)
+                            if !item.isDirectory {
+                                Text(verbatim: ByteCountFormatter.string(fromByteCount: Int64(item.size), countStyle: .file))
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                        .listRowInsets(EdgeInsets(top: 4, leading: 12, bottom: 4, trailing: 12))
+                    }
+                    if total > items.count {
+                        Text("and \(total - items.count) more items")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .listStyle(.plain)
+                .environment(\.defaultMinListRowHeight, 26)
+            } else if failed {
+                ContentUnavailableView("No Preview", systemImage: "archivebox", description: Text("This archive could not be read."))
+            } else {
+                ProgressView()
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
+        }
+        .task(id: url) {
+            let url = url
+            let result = await Task.detached { Archives.contents(of: url) }.value
+            if let result {
+                items = result.items
+                total = result.total
+            } else {
+                failed = true
+            }
         }
     }
 }

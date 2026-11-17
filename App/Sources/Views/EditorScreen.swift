@@ -139,7 +139,9 @@ struct EditorScreen: View {
     @ViewBuilder
     private func content(sideBySide: Bool) -> some View {
         if document.isBinary {
-            if let url = document.url, !showHex, FileKind.canPreview(url) {
+            if let url = document.url, !showHex, Archives.isArchive(url) {
+                ArchiveContents(url: url)
+            } else if let url = document.url, !showHex, FileKind.canPreview(url) {
                 QuickLookView(url: url)
                     .id(url)
             } else if let data = document.binary {
@@ -192,7 +194,7 @@ struct EditorScreen: View {
                     }
                 }
             }
-            if document.isBinary, let url = document.url, FileKind.canPreview(url) {
+            if document.isBinary, let url = document.url, FileKind.canPreview(url) || Archives.isArchive(url) {
                 Button {
                     showHex.toggle()
                 } label: {

@@ -24,6 +24,9 @@ packages:
   TreeSitterLanguages:
     url: https://github.com/simonbs/TreeSitterLanguages
     revision: 4442182303a00bf2764b10ead923a1066a0946f6
+  ZIPFoundation:
+    url: https://github.com/weichsel/ZIPFoundation
+    exactVersion: 0.9.20
 targets:
   EOF:
     type: application
@@ -34,6 +37,7 @@ targets:
     dependencies:
       - package: EOFCore
       - package: Runestone
+      - package: ZIPFoundation
       - package: TreeSitterLanguages
         product: TreeSitterSwiftRunestone
       - package: TreeSitterLanguages

@@ -134,6 +134,16 @@
         }
       }
     },
+    "Archive": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "归档"
+          }
+        }
+      }
+    },
     "Auto Indent": {
       "localizations": {
         "zh-Hans": {
@@ -350,6 +360,26 @@
           "stringUnit": {
             "state": "translated",
             "value": "与…对比"
+          }
+        }
+      }
+    },
+    "Compress": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "压缩"
+          }
+        }
+      }
+    },
+    "Compressing…": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在压缩…"
           }
         }
       }
@@ -703,6 +733,26 @@
           "stringUnit": {
             "state": "translated",
             "value": "扩展名"
+          }
+        }
+      }
+    },
+    "Extract": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "解压"
+          }
+        }
+      }
+    },
+    "Extracting…": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在解压…"
           }
         }
       }
@@ -2177,6 +2227,16 @@
         }
       }
     },
+    "This archive could not be read.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无法读取这个压缩包。"
+          }
+        }
+      }
+    },
     "This cannot be undone.": {
       "localizations": {
         "zh-Hans": {
@@ -2383,6 +2443,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "自动换行"
+          }
+        }
+      }
+    },
+    "and %lld more items": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "以及另外 %lld 项"
           }
         }
       }
