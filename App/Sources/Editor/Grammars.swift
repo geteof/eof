@@ -163,7 +163,7 @@ enum Grammars {
         case "pascal": return .pascal
         // Grammars from their own repositories, with the highlight queries shipped in this app.
         case "kotlin": return TreeSitterLanguage(tree_sitter_kotlin(), highlightsQuery: query("kotlin"))
-        case "dockerfile": return TreeSitterLanguage(UnsafePointer(tree_sitter_dockerfile()), highlightsQuery: query("dockerfile"))
+        case "dockerfile": return TreeSitterLanguage(tree_sitter_dockerfile(), highlightsQuery: query("dockerfile"))
         case "ini": return TreeSitterLanguage(tree_sitter_ini(), highlightsQuery: query("ini"))
         default: return nil
         }
