@@ -300,29 +300,43 @@ private struct OpenDocumentRow: View {
     }
 }
 
-/// A file's icon in lists: one glyph on a rounded tile of fixed size, so every row lines up
-/// whatever the glyph's own width is.
+/// A file's icon in lists, drawn in a fixed square so every row lines up. Files and folders use
+/// the Material Icon Theme; `symbol` draws an SF Symbol the same size, for actions.
 struct FileIcon: View {
-    let symbol: String
-    let tint: Color
-
-    init(symbol: String, tint: Color) {
-        self.symbol = symbol
-        self.tint = tint
+    private enum Source {
+        case asset(String)
+        case symbol(String, Color)
     }
 
-    init(name: String, isFolder: Bool = false) {
-        symbol = isFolder ? "folder.fill" : FileNode.symbol(for: name)
-        tint = isFolder ? .accentColor : FileNode.tint(for: name)
+    private let source: Source
+    var size: CGFloat = 22
+
+    init(symbol: String, tint: Color) {
+        source = .symbol(symbol, tint)
+    }
+
+    init(name: String, isFolder: Bool = false, size: CGFloat = 22) {
+        source = .asset(isFolder ? MaterialIcons.folder(name) : MaterialIcons.file(name))
+        self.size = size
     }
 
     var body: some View {
-        Image(systemName: symbol)
-            .font(.system(size: 14, weight: .semibold))
-            .foregroundStyle(tint)
-            .frame(width: 30, height: 30)
-            .background(tint.opacity(0.16), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-            .accessibilityHidden(true)
+        Group {
+            switch source {
+            case .asset(let asset):
+                Image(asset)
+                    .resizable()
+                    .interpolation(.high)
+                    .scaledToFit()
+                    .frame(width: size, height: size)
+            case .symbol(let symbol, let tint):
+                Image(systemName: symbol)
+                    .font(.system(size: size * 0.72, weight: .medium))
+                    .foregroundStyle(tint)
+            }
+        }
+        .frame(width: size + 8, height: size + 8)
+        .accessibilityHidden(true)
     }
 }
 
@@ -358,25 +372,5 @@ private struct QuickActions: View {
             .contentShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
         }
         .buttonStyle(.plain)
-    }
-}
-
-extension FileNode {
-    /// A quiet colour per kind of file, so a list of names can be scanned by type.
-    static func tint(for name: String) -> Color {
-        switch symbol(for: name) {
-        case "doc.plaintext": return .blue
-        case "list.bullet.rectangle": return .orange
-        case "globe": return .teal
-        case "terminal": return .green
-        case "swift": return .orange
-        case "chevron.left.forwardslash.chevron.right": return .indigo
-        case "plusminus": return .pink
-        case "tablecells": return .green
-        case "photo": return .purple
-        case "film", "waveform": return .pink
-        case "doc.richtext", "rectangle.on.rectangle": return .red
-        default: return .gray
-        }
     }
 }

@@ -255,10 +255,7 @@ private struct ArchiveItemRow: View {
 
     var body: some View {
         HStack(spacing: 8) {
-            Image(systemName: item.isDirectory ? "folder.fill" : FileNode.symbol(for: item.path))
-                .font(.system(size: 13))
-                .foregroundStyle(item.isDirectory ? Color.accentColor : FileNode.tint(for: item.path))
-                .frame(width: 20)
+            FileIcon(name: String(parts.last ?? Substring(item.path)), isFolder: item.isDirectory, size: 18)
             Text(verbatim: parts.last.map(String.init) ?? item.path)
                 .font(.callout)
                 .lineLimit(2)

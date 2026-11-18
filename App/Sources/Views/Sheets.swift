@@ -357,7 +357,7 @@ struct FolderSearchView: View {
                         Label {
                             Text(verbatim: file.relativePath)
                         } icon: {
-                            Image(systemName: FileNode.symbol(for: file.url.lastPathComponent))
+                            FileIcon(name: file.url.lastPathComponent, size: 16)
                         }
                         .textCase(nil)
                     }

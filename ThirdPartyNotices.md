@@ -12,3 +12,4 @@ EOF builds on these projects. Each keeps its own licence; the full texts are in 
 | [tree-sitter-kotlin](https://github.com/fwcd/tree-sitter-kotlin) | Kotlin grammar; `App/Resources/Queries/kotlin.scm` is its highlight query, itself based on nvim-treesitter (Apache-2.0) | MIT |
 | [tree-sitter-dockerfile](https://github.com/camdencheek/tree-sitter-dockerfile) | Dockerfile grammar; `App/Resources/Queries/dockerfile.scm` is its highlight query | MIT |
 | [tree-sitter-ini](https://github.com/justinmk/tree-sitter-ini) | INI grammar; `App/Resources/Queries/ini.scm` is its highlight query | Apache-2.0 |
+| [Material Icon Theme](https://github.com/material-extensions/vscode-material-icon-theme) 5.40.0 | File and folder icons in `App/Resources/MaterialIcons.xcassets`, made by `Tools/material-icons.py` from the npm package. The same set the "Material Icons for GitHub" browser extension uses | MIT |

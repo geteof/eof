@@ -911,14 +911,8 @@ private struct GridCell: View {
                     Thumbnail(url: entry.url)
                         .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
                 } else {
-                    Image(systemName: entry.isDirectory ? "folder.fill" : FileNode.symbol(for: entry.name))
-                        .font(.system(size: 38, weight: .regular))
-                        .foregroundStyle(entry.isDirectory ? Color.accentColor : FileNode.tint(for: entry.name))
+                    FileIcon(name: entry.name, isFolder: entry.isDirectory, size: 52)
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        .background(
-                            (entry.isDirectory ? Color.accentColor : FileNode.tint(for: entry.name)).opacity(0.12),
-                            in: RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        )
                 }
             }
             .frame(height: 78)
@@ -989,9 +983,7 @@ private struct Thumbnail: View {
                     .resizable()
                     .scaledToFit()
             } else if failed {
-                Image(systemName: FileNode.symbol(for: url.lastPathComponent))
-                    .font(.system(size: 56, weight: .light))
-                    .foregroundStyle(.secondary)
+                FileIcon(name: url.lastPathComponent, size: 56)
             } else {
                 ProgressView()
             }
