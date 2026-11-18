@@ -56,6 +56,8 @@ final class EditorController: NSObject, TextViewDelegate, EditorKeyCommands {
 
     private weak var document: EditorDocument?
     private let settings = AppSettings.shared
+    /// Called when the text view starts editing, so a split window knows which pane has focus.
+    var onFocus: (() -> Void)?
     private var theme: RunestoneTheme
     private var appliedStamp: Int?
     private var isReplacingProgrammatically = false
@@ -342,6 +344,10 @@ final class EditorController: NSObject, TextViewDelegate, EditorKeyCommands {
         textDidChange()
     }
 
+    func textViewDidBeginEditing(_ textView: TextView) {
+        onFocus?()
+    }
+
     func textViewDidChangeSelection(_ textView: TextView) {
         selectionDidChange()
     }
@@ -510,7 +516,9 @@ struct EditorHost: UIViewRepresentable {
 
         override func layoutSubviews() {
             super.layoutSubviews()
-            controller?.layout(in: bounds)
+            // A container the view has moved out of (pane swap, another window) must not resize it.
+            guard let controller, controller.view.superview === self else { return }
+            controller.layout(in: bounds)
         }
     }
 

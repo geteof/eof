@@ -26,8 +26,12 @@ enum EditorSheet: String, Identifiable {
 
 struct EditorScreen: View {
     @ObservedObject var document: EditorDocument
+    /// The first pane uses the window's navigation bar; the second draws its own header.
+    var pane: EditorPane = .primary
     let startImport: (ImportKind) -> Void
     @EnvironmentObject private var model: AppModel
+    @EnvironmentObject private var window: WindowState
+    @Environment(\.openWindow) private var openWindow
     @EnvironmentObject private var settings: AppSettings
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
@@ -52,7 +56,10 @@ struct EditorScreen: View {
             // Side by side needs room for two readable columns; below that the preview takes over.
             let sideBySide = proxy.size.width >= 700
             VStack(spacing: 0) {
-                if model.documents.count > 1 {
+                if pane == .secondary {
+                    secondaryHeader
+                    Divider()
+                } else if model.documents.count > 1 {
                     TabStrip()
                     Divider()
                 }
@@ -71,11 +78,17 @@ struct EditorScreen: View {
                     showGoToLine = true
                 }
             }
+            // A thin line marks the pane that menu commands and the keyboard go to.
+            .overlay(alignment: .top) {
+                if window.isSplit, window.focusedPane == pane {
+                    Rectangle()
+                        .fill(.tint)
+                        .frame(height: 2)
+                }
+            }
+            .simultaneousGesture(TapGesture().onEnded { focusHere() })
         }
-        .navigationTitle(document.name)
-        .navigationBarTitleDisplayMode(.inline)
-        .toolbarTitleMenu { titleMenu }
-        .toolbar { toolbar }
+        .modifier(PaneChrome(isPrimary: pane == .primary, title: document.name, titleMenu: titleMenu, toolbar: toolbarButtons))
         .sheet(item: $sheet) { sheet in
             switch sheet {
             case .outline: OutlineSheet(document: document)
@@ -117,14 +130,21 @@ struct EditorScreen: View {
                     document.adopt(url: url)
                     model.saveSession()
                 } else {
-                    model.open(url)
+                    model.open(url, in: window)
                 }
             case .failure(let error):
                 model.alert = AppAlert(title: String(localized: "Could Not Save"), message: error.localizedDescription)
             }
         }
-        .onReceive(model.commands) { handle($0) }
+        .onReceive(window.commands) { command in
+            if !window.isSplit || window.focusedPane == pane { handle(command) }
+        }
         .onAppear {
+            document.controller.onFocus = { [weak window, weak model] in
+                guard let window else { return }
+                model?.focusedWindow = window
+                window.focusedPane = pane
+            }
             #if DEBUG
             DebugLaunch.apply(to: document, showFind: &showFind, findWithReplace: &findWithReplace, showPreview: &showPreview, sheet: &sheet)
             #endif
@@ -177,9 +197,10 @@ struct EditorScreen: View {
 
     // MARK: - Toolbar
 
-    @ToolbarContentBuilder
-    private var toolbar: some ToolbarContent {
-        ToolbarItemGroup(placement: .primaryAction) {
+    /// The find, preview and more buttons: in the navigation bar for the first pane, in the
+    /// header for the second.
+    @ViewBuilder
+    private var toolbarButtons: some View {
             if !document.isBinary {
                 Button {
                     toggleFind(replace: false)
@@ -206,7 +227,52 @@ struct EditorScreen: View {
             } label: {
                 Label("More", systemImage: "ellipsis.circle")
             }
+    }
+
+    /// The second pane's own bar: its document (a menu to switch), its buttons, and close.
+    private var secondaryHeader: some View {
+        HStack(spacing: 14) {
+            Menu {
+                let others = model.documents.filter { $0.id != document.id && $0.id != window.primaryID }
+                if !others.isEmpty {
+                    Section("Show in This Pane") {
+                        ForEach(others) { other in
+                            Button(other.name) { model.activate(other, in: window, pane: .secondary) }
+                        }
+                    }
+                }
+                titleMenu
+            } label: {
+                HStack(spacing: 4) {
+                    Text(verbatim: document.name)
+                        .font(.subheadline.weight(.semibold))
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                    Image(systemName: "chevron.down")
+                        .font(.caption2.weight(.bold))
+                }
+                .foregroundStyle(.primary)
+            }
+            Spacer(minLength: 4)
+            toolbarButtons
+                .labelStyle(.iconOnly)
+            Button {
+                model.closeSplit(in: window)
+            } label: {
+                Label("Close Split", systemImage: "xmark")
+                    .labelStyle(.iconOnly)
+                    .font(.footnote.weight(.semibold))
+            }
         }
+        .imageScale(.medium)
+        .padding(.horizontal, 14)
+        .frame(height: 40)
+        .background(.bar)
+    }
+
+    private func focusHere() {
+        model.focusedWindow = window
+        if window.focusedPane != pane { window.focusedPane = pane }
     }
 
     @ViewBuilder
@@ -390,9 +456,35 @@ struct EditorScreen: View {
             }
             if model.folder != nil {
                 Button {
-                    model.showBrowser = true
+                    window.showBrowser = true
                 } label: {
                     Label("Browse Files", systemImage: "folder")
+                }
+            }
+        }
+        Section {
+            if window.isSplit {
+                Button {
+                    model.closeSplit(in: window)
+                } label: {
+                    Label("Close Split", systemImage: "rectangle")
+                }
+            } else {
+                let others = model.documents.filter { $0.id != document.id && !model.isVisible($0.id) }
+                Menu {
+                    ForEach(others) { other in
+                        Button(other.name) { model.activate(other, in: window, pane: .secondary) }
+                    }
+                } label: {
+                    Label("Open in Split", systemImage: "rectangle.split.2x1")
+                }
+                .disabled(others.isEmpty)
+            }
+            if UIApplication.shared.supportsMultipleScenes {
+                Button {
+                    openWindow(id: EOFApp.windowID, value: document.id)
+                } label: {
+                    Label("Open in New Window", systemImage: "macwindow.badge.plus")
                 }
             }
             Button(role: .destructive) {
@@ -435,7 +527,7 @@ struct EditorScreen: View {
             if Outline.supports(document.language) { sheet = .outline }
         case .closeDocument:
             model.requestClose(document)
-        case .findInFolder, .openFile, .openFolder, .browseFiles:
+        case .findInFolder, .openFile, .openFolder, .browseFiles, .toggleSplit:
             break
         }
     }
@@ -541,13 +633,14 @@ struct NoticeBar: View {
 /// Open documents as a row of tabs.
 struct TabStrip: View {
     @EnvironmentObject private var model: AppModel
+    @EnvironmentObject private var window: WindowState
 
     var body: some View {
         ScrollViewReader { reader in
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 6) {
                     ForEach(model.documents) { document in
-                        TabItem(document: document, isActive: document.id == model.activeID)
+                        TabItem(document: document, isActive: document.id == window.primaryID, isInSplit: document.id == window.secondaryID)
                             .id(document.id)
                     }
                 }
@@ -555,11 +648,11 @@ struct TabStrip: View {
                 .padding(.vertical, 6)
             }
             .background(.bar)
-            .onChange(of: model.activeID) { _, id in
+            .onChange(of: window.primaryID) { _, id in
                 if let id { withAnimation { reader.scrollTo(id, anchor: .center) } }
             }
             .onAppear {
-                if let id = model.activeID { reader.scrollTo(id, anchor: .center) }
+                if let id = window.primaryID { reader.scrollTo(id, anchor: .center) }
             }
         }
     }
@@ -567,15 +660,24 @@ struct TabStrip: View {
 
 private struct TabItem: View {
     @EnvironmentObject private var model: AppModel
+    @EnvironmentObject private var window: WindowState
+    @Environment(\.openWindow) private var openWindow
     @ObservedObject var document: EditorDocument
     let isActive: Bool
+    /// Shown in the window's second pane.
+    var isInSplit = false
 
     var body: some View {
         HStack(spacing: 6) {
             Button {
-                model.activate(document)
+                model.activate(document, in: window, pane: .primary)
             } label: {
                 HStack(spacing: 5) {
+                    if isInSplit {
+                        Image(systemName: "rectangle.righthalf.inset.filled")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
                     if document.isDirty {
                         Circle()
                             .fill(.tint)
@@ -616,6 +718,43 @@ private struct TabItem: View {
             } label: {
                 Label("Close Others", systemImage: "xmark.square")
             }
+            Divider()
+            if !isActive, !isInSplit {
+                Button {
+                    model.activate(document, in: window, pane: .secondary)
+                } label: {
+                    Label("Open in Split", systemImage: "rectangle.split.2x1")
+                }
+            }
+            if UIApplication.shared.supportsMultipleScenes {
+                Button {
+                    openWindow(id: EOFApp.windowID, value: document.id)
+                } label: {
+                    Label("Open in New Window", systemImage: "macwindow.badge.plus")
+                }
+            }
+        }
+    }
+}
+
+/// The navigation bar title, title menu and buttons, only for the pane that owns the bar.
+private struct PaneChrome<TitleMenu: View, Buttons: View>: ViewModifier {
+    let isPrimary: Bool
+    let title: String
+    let titleMenu: TitleMenu
+    let toolbar: Buttons
+
+    func body(content: Content) -> some View {
+        if isPrimary {
+            content
+                .navigationTitle(title)
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbarTitleMenu { titleMenu }
+                .toolbar {
+                    ToolbarItemGroup(placement: .primaryAction) { toolbar }
+                }
+        } else {
+            content
         }
     }
 }

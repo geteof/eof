@@ -3,6 +3,7 @@ import EOFCore
 
 struct SidebarView: View {
     @EnvironmentObject private var model: AppModel
+    @EnvironmentObject private var window: WindowState
     @EnvironmentObject private var settings: AppSettings
     let startImport: (ImportKind) -> Void
     @Binding var showSettings: Bool
@@ -20,7 +21,7 @@ struct SidebarView: View {
             if !model.documents.isEmpty {
                 Section("Open Documents") {
                     ForEach(model.documents) { document in
-                        OpenDocumentRow(document: document, isActive: document.id == model.activeID)
+                        OpenDocumentRow(document: document, isActive: window.pane(showing: document.id) != nil)
                     }
                 }
             }
@@ -28,7 +29,7 @@ struct SidebarView: View {
             if let folder = model.folder {
                 Section("Folder") {
                     Button {
-                        model.showBrowser = true
+                        window.showBrowser = true
                     } label: {
                         HStack(spacing: 4) {
                             Label {
@@ -186,7 +187,7 @@ struct SidebarView: View {
         .sheet(isPresented: $showFolderSearch) {
             FolderSearchView()
         }
-        .onReceive(model.commands) { command in
+        .onReceive(window.commands) { command in
             if case .findInFolder = command, model.folder != nil { showFolderSearch = true }
         }
     }
@@ -194,6 +195,8 @@ struct SidebarView: View {
 
 private struct OpenDocumentRow: View {
     @EnvironmentObject private var model: AppModel
+    @EnvironmentObject private var window: WindowState
+    @Environment(\.openWindow) private var openWindow
     @ObservedObject var document: EditorDocument
     let isActive: Bool
 
@@ -205,7 +208,7 @@ private struct OpenDocumentRow: View {
     var body: some View {
         HStack(spacing: 4) {
             Button {
-                model.activate(document)
+                model.activate(document, in: window)
             } label: {
                 Label {
                     VStack(alignment: .leading, spacing: 2) {
@@ -277,6 +280,21 @@ private struct OpenDocumentRow: View {
             }
             if let url = document.url {
                 ShareLink(item: url)
+            }
+            Divider()
+            if window.pane(showing: document.id) == nil, window.primaryID != nil {
+                Button {
+                    model.activate(document, in: window, pane: .secondary)
+                } label: {
+                    Label("Open in Split", systemImage: "rectangle.split.2x1")
+                }
+            }
+            if UIApplication.shared.supportsMultipleScenes {
+                Button {
+                    openWindow(id: EOFApp.windowID, value: document.id)
+                } label: {
+                    Label("Open in New Window", systemImage: "macwindow.badge.plus")
+                }
             }
         }
     }

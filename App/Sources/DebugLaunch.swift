@@ -11,6 +11,7 @@ import EOFCore
 ///     -sheet <name>     outline | statistics | compare | language
 ///     -line <n>         put the caret on this line
 ///     -readonly         open in read-only mode
+///     -split <path>     open a file in the second pane
 ///     -selftest         drive the editor through its commands and write Documents/selftest.txt
 ///     -browse [subfolder]  show the file browser on the folder, optionally inside a subfolder
 ///     -peek <name>      select this file in the browser's preview pane (wide screens)
@@ -36,6 +37,8 @@ enum DebugLaunch {
     static func open(in model: AppModel) {
         if let folder = values("-folder").first { model.openFolder(resolve(folder), browse: arguments.contains("-browse")) }
         for path in values("-open") { model.open(resolve(path)) }
+        // Loading is serial, so the split document arrives after the first pane has one.
+        for path in values("-split") { model.open(resolve(path), pane: .secondary) }
         if arguments.contains("-ziptest") { zipTest() }
     }
 

@@ -6,21 +6,15 @@ struct EOFApp: App {
     @StateObject private var settings = AppSettings.shared
     @Environment(\.scenePhase) private var scenePhase
 
+    /// The scene is identified by the document a new window should open with; the first window and
+    /// windows from "New Window" have none.
+    static let windowID = "editor"
+
     var body: some Scene {
-        WindowGroup {
-            RootView()
+        WindowGroup(id: EOFApp.windowID, for: UUID.self) { $documentID in
+            RootView(initialDocument: documentID)
                 .environmentObject(model)
                 .environmentObject(settings)
-                .onOpenURL { model.openAny($0) }
-                .onAppear {
-                    #if DEBUG
-                    if DebugLaunch.isActive {
-                        DebugLaunch.open(in: model)
-                        return
-                    }
-                    #endif
-                    model.restoreSession()
-                }
         }
         .onChange(of: scenePhase) { _, phase in
             switch phase {
@@ -30,50 +24,72 @@ struct EOFApp: App {
             }
         }
         .commands {
-            CommandGroup(replacing: .newItem) {
-                Button("New File") { model.newDocument() }
-                    .keyboardShortcut("n")
-                Button("Open…") { model.commands.send(.openFile) }
-                    .keyboardShortcut("o")
-                Button("Open Folder…") { model.commands.send(.openFolder) }
-                    .keyboardShortcut("o", modifiers: [.command, .shift])
-                Button("Browse Files") { model.commands.send(.browseFiles) }
-                    .keyboardShortcut("b", modifiers: [.command, .shift])
+            EditorCommands(model: model, settings: settings)
+        }
+    }
+}
+
+/// The menu bar and keyboard shortcuts. Commands go to the window that has focus.
+struct EditorCommands: Commands {
+    let model: AppModel
+    @ObservedObject var settings: AppSettings
+    @FocusedObject private var window: WindowState?
+    @Environment(\.openWindow) private var openWindow
+
+    private func send(_ command: EditorCommand) {
+        window?.commands.send(command)
+    }
+
+    var body: some Commands {
+        CommandGroup(replacing: .newItem) {
+            Button("New File") { model.newDocument() }
+                .keyboardShortcut("n")
+            if UIApplication.shared.supportsMultipleScenes {
+                Button("New Window") { openWindow(id: EOFApp.windowID) }
+                    .keyboardShortcut("n", modifiers: [.command, .option])
             }
-            CommandGroup(replacing: .saveItem) {
-                Button("Save") { model.commands.send(.save) }
-                    .keyboardShortcut("s")
-                Button("Save As…") { model.commands.send(.saveAs) }
-                    .keyboardShortcut("s", modifiers: [.command, .shift])
-                Button("Close Document") { model.commands.send(.closeDocument) }
-                    .keyboardShortcut("w")
-            }
-            CommandMenu("Find") {
-                Button("Find…") { model.commands.send(.find) }
-                    .keyboardShortcut("f")
-                Button("Find and Replace…") { model.commands.send(.replace) }
-                    .keyboardShortcut("f", modifiers: [.command, .option])
-                Button("Find in Folder…") { model.commands.send(.findInFolder) }
-                    .keyboardShortcut("f", modifiers: [.command, .shift])
-                Divider()
-                Button("Go to Line…") { model.commands.send(.goToLine) }
-                    .keyboardShortcut("l")
-                Button("Outline") { model.commands.send(.outline) }
-                    .keyboardShortcut("o", modifiers: [.command, .option])
-            }
-            CommandMenu("Editor") {
-                Button("Toggle Preview") { model.commands.send(.togglePreview) }
-                    .keyboardShortcut("p", modifiers: [.command, .shift])
-                Divider()
-                Button("Bigger Text") { settings.adjustFontSize(by: 1) }
-                    .keyboardShortcut("+")
-                Button("Smaller Text") { settings.adjustFontSize(by: -1) }
-                    .keyboardShortcut("-")
-                Divider()
-                Toggle("Wrap Lines", isOn: $settings.wrapLines)
-                Toggle("Line Numbers", isOn: $settings.showLineNumbers)
-                Toggle("Show Invisibles", isOn: $settings.showInvisibles)
-            }
+            Button("Open…") { send(.openFile) }
+                .keyboardShortcut("o")
+            Button("Open Folder…") { send(.openFolder) }
+                .keyboardShortcut("o", modifiers: [.command, .shift])
+            Button("Browse Files") { send(.browseFiles) }
+                .keyboardShortcut("b", modifiers: [.command, .shift])
+        }
+        CommandGroup(replacing: .saveItem) {
+            Button("Save") { send(.save) }
+                .keyboardShortcut("s")
+            Button("Save As…") { send(.saveAs) }
+                .keyboardShortcut("s", modifiers: [.command, .shift])
+            Button("Close Document") { send(.closeDocument) }
+                .keyboardShortcut("w")
+        }
+        CommandMenu("Find") {
+            Button("Find…") { send(.find) }
+                .keyboardShortcut("f")
+            Button("Find and Replace…") { send(.replace) }
+                .keyboardShortcut("f", modifiers: [.command, .option])
+            Button("Find in Folder…") { send(.findInFolder) }
+                .keyboardShortcut("f", modifiers: [.command, .shift])
+            Divider()
+            Button("Go to Line…") { send(.goToLine) }
+                .keyboardShortcut("l")
+            Button("Outline") { send(.outline) }
+                .keyboardShortcut("o", modifiers: [.command, .option])
+        }
+        CommandMenu("Editor") {
+            Button("Toggle Preview") { send(.togglePreview) }
+                .keyboardShortcut("p", modifiers: [.command, .shift])
+            Button(window?.isSplit == true ? "Close Split" : "Split Editor") { send(.toggleSplit) }
+                .keyboardShortcut("\\")
+            Divider()
+            Button("Bigger Text") { settings.adjustFontSize(by: 1) }
+                .keyboardShortcut("+")
+            Button("Smaller Text") { settings.adjustFontSize(by: -1) }
+                .keyboardShortcut("-")
+            Divider()
+            Toggle("Wrap Lines", isOn: $settings.wrapLines)
+            Toggle("Line Numbers", isOn: $settings.showLineNumbers)
+            Toggle("Show Invisibles", isOn: $settings.showInvisibles)
         }
     }
 }

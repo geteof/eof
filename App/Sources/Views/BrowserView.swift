@@ -149,6 +149,7 @@ enum FilePeek {
 /// wide screen a preview of the selected file beside the list.
 struct BrowserView: View {
     @EnvironmentObject private var model: AppModel
+    @EnvironmentObject private var window: WindowState
     let root: URL
     @State private var path: [URL] = []
     @State private var selection: FileEntry?
@@ -181,9 +182,10 @@ struct BrowserView: View {
     }
 
     private func open(_ url: URL) {
-        model.open(url)
-        model.showBrowser = false
+        model.open(url, in: window)
+        window.showBrowser = false
     }
+
 
     /// Goes back up to one of the folders above the current page.
     private func popTo(_ folder: URL) {
@@ -205,6 +207,7 @@ private struct FolderPage: View {
     let popTo: (URL) -> Void
     let push: (URL) -> Void
 
+    @EnvironmentObject private var window: WindowState
     @EnvironmentObject private var model: AppModel
     @EnvironmentObject private var settings: AppSettings
     @StateObject private var listing: FolderListing
@@ -495,6 +498,14 @@ private struct FolderPage: View {
                 Label("Open in Editor", systemImage: "square.and.pencil")
             }
         }
+        if !entry.isDirectory, window.primaryID != nil {
+            Button {
+                model.open(entry.url, in: window, pane: .secondary)
+                window.showBrowser = false
+            } label: {
+                Label("Open in Split", systemImage: "rectangle.split.2x1")
+            }
+        }
         Button {
             info = entry
         } label: {
@@ -548,7 +559,7 @@ private struct FolderPage: View {
                     picked = picked.count == shown.count ? [] : Set(shown.map(\.url))
                 }
             } else if url == root {
-                Button("Done") { model.showBrowser = false }
+                Button("Done") { window.showBrowser = false }
             }
         }
         ToolbarItem(placement: .principal) {

@@ -85,18 +85,21 @@ final class AppModel: ObservableObject {
     static let shared = AppModel()
 
     @Published var documents: [EditorDocument] = []
-    @Published var activeID: EditorDocument.ID?
     @Published var folder: FileNode?
     @Published var recents: [RecentItem] = []
-    @Published var compactColumn: NavigationSplitViewColumn = .sidebar
     @Published var alert: AppAlert?
     @Published var loadingName: String?
     /// A document whose closing needs the user's confirmation because text would be lost.
     @Published var pendingClose: EditorDocument?
-    /// The full-screen file browser for the open folder.
-    @Published var showBrowser = false
-    /// A request for the editor screen to act on the active document (from menus and shortcuts).
-    let commands = PassthroughSubject<EditorCommand, Never>()
+    /// The window the user last worked in. Opening a file, a folder or a new document lands here.
+    weak var focusedWindow: WindowState?
+    private var windowRefs: [WeakWindow] = []
+
+    private struct WeakWindow {
+        weak var value: WindowState?
+    }
+
+    var windows: [WindowState] { windowRefs.compactMap(\.value) }
 
     private let settings = AppSettings.shared
     private let defaults = UserDefaults.standard
@@ -106,7 +109,20 @@ final class AppModel: ObservableObject {
     /// Files load one at a time, so several opened together appear in the order they were asked for.
     private let loadQueue = DispatchQueue(label: "moe.luoling.eof.load", qos: .userInitiated)
 
-    var activeDocument: EditorDocument? { documents.first { $0.id == activeID } }
+    func document(_ id: EditorDocument.ID?) -> EditorDocument? {
+        guard let id else { return nil }
+        return documents.first { $0.id == id }
+    }
+
+    func register(_ window: WindowState) {
+        windowRefs.removeAll { $0.value == nil || $0.value === window }
+        windowRefs.append(WeakWindow(value: window))
+        if focusedWindow == nil { focusedWindow = window }
+    }
+
+    func isVisible(_ id: EditorDocument.ID) -> Bool {
+        windows.contains { $0.pane(showing: id) != nil }
+    }
 
     private init() {
         if let data = defaults.data(forKey: "recents"), let items = try? JSONDecoder().decode([RecentItem].self, from: data) {
@@ -116,10 +132,48 @@ final class AppModel: ObservableObject {
 
     // MARK: - Documents
 
-    func activate(_ document: EditorDocument) {
-        activeID = document.id
-        compactColumn = .detail
+    /// Shows the document in a window's pane: the given ones, or where the user last worked. A
+    /// document already shown in that window is focused there, or swapped when another pane is
+    /// asked for; one shown in another window moves here.
+    func activate(_ document: EditorDocument, in window: WindowState? = nil, pane: EditorPane? = nil) {
+        guard let window = window ?? focusedWindow ?? windows.first else { return }
+        focusedWindow = window
+        let id = document.id
+        var target = pane ?? window.focusedPane
+        if target == .secondary, window.primaryID == nil || (!window.isSplit && pane == nil) { target = .primary }
+        if let current = window.pane(showing: id) {
+            if current != target, pane != nil {
+                let other = window.documentID(in: target)
+                if current == .primary, other == nil {
+                    // Moving the first pane's document aside needs something to take its place.
+                    guard let replacement = splitCandidate(for: window, excluding: id) else { return }
+                    window.primaryID = replacement.id
+                } else {
+                    window.set(other, in: current)
+                }
+                window.set(id, in: target)
+            } else {
+                target = current
+            }
+        } else {
+            for other in windows where other !== window { other.release(id) }
+            window.set(id, in: target)
+        }
+        window.focusedPane = target
+        window.compactColumn = .detail
         document.checkForExternalChange()
+    }
+
+    /// A document to put in a second pane: the next one in tab order that no window shows.
+    func splitCandidate(for window: WindowState, excluding excluded: EditorDocument.ID? = nil) -> EditorDocument? {
+        let start = documents.firstIndex { $0.id == window.primaryID } ?? -1
+        let ordered = documents.indices.map { documents[($0 + start + 1) % documents.count] }
+        return ordered.first { $0.id != excluded && !isVisible($0.id) }
+    }
+
+    func closeSplit(in window: WindowState) {
+        window.secondaryID = nil
+        window.focusedPane = .primary
     }
 
     @discardableResult
@@ -135,10 +189,12 @@ final class AppModel: ObservableObject {
     }
 
     /// Opens a file, or switches to it when it is already open. `selecting` moves the caret afterwards.
-    func open(_ url: URL, selecting range: NSRange? = nil, activate shouldActivate: Bool = true) {
+    func open(_ url: URL, selecting range: NSRange? = nil, activate shouldActivate: Bool = true, in window: WindowState? = nil, pane: EditorPane? = nil) {
         let target = url.standardizedFileURL
+        // Remember where the request came from: loading finishes later.
+        let destination = window ?? focusedWindow
         if let existing = documents.first(where: { $0.url?.standardizedFileURL == target }) {
-            if shouldActivate { activate(existing) }
+            if shouldActivate { activate(existing, in: destination, pane: pane) }
             if let range { DispatchQueue.main.async { existing.controller.select(range, focus: false) } }
             return
         }
@@ -164,7 +220,7 @@ final class AppModel: ObservableObject {
                     let document = EditorDocument(url: url, loaded: loaded)
                     document.preparedState = prepared
                     self.documents.append(document)
-                    if shouldActivate { self.activate(document) }
+                    if shouldActivate { self.activate(document, in: destination, pane: pane) }
                     self.remember(url, isFolder: false)
                     if let range { DispatchQueue.main.async { document.controller.select(range, focus: false) } }
                     self.saveSession()
@@ -186,10 +242,15 @@ final class AppModel: ObservableObject {
         if document.isUntitled { document.discardDraft() }
         guard let index = documents.firstIndex(where: { $0.id == document.id }) else { return }
         documents.remove(at: index)
-        if activeID == document.id {
-            let next = documents.indices.contains(index) ? documents[index] : documents.last
-            activeID = next?.id
-            if next == nil { compactColumn = .sidebar }
+        for window in windows where window.pane(showing: document.id) != nil {
+            let wasPrimary = window.primaryID == document.id
+            window.release(document.id)
+            if wasPrimary, window.primaryID == nil {
+                // Show the neighbouring tab, if no other pane shows it already.
+                let candidates = Array(documents[min(index, documents.count)...]) + documents[..<min(index, documents.count)].reversed()
+                window.primaryID = candidates.first { !isVisible($0.id) }?.id
+            }
+            if window.primaryID == nil { window.compactColumn = .sidebar }
         }
         saveSession()
     }
@@ -223,7 +284,7 @@ final class AppModel: ObservableObject {
     }
 
     func checkExternalChanges() {
-        activeDocument?.checkForExternalChange()
+        for document in documents where isVisible(document.id) { document.checkForExternalChange() }
     }
 
     // MARK: - Folder
@@ -233,7 +294,7 @@ final class AppModel: ObservableObject {
         closeFolder()
         folderIsScoped = url.startAccessingSecurityScopedResource()
         folder = FileNode(url: url, isDirectory: true)
-        showBrowser = browse
+        if browse { focusedWindow?.showBrowser = true }
         remember(url, isFolder: true)
         saveSession()
     }
@@ -245,7 +306,7 @@ final class AppModel: ObservableObject {
         let inUse = documents.contains { $0.url?.standardizedFileURL.path.hasPrefix(prefix) ?? false }
         if folderIsScoped, !inUse { current.url.stopAccessingSecurityScopedResource() }
         folderIsScoped = false
-        showBrowser = false
+        windows.forEach { $0.showBrowser = false }
         folder = nil
         saveSession()
     }
@@ -311,7 +372,7 @@ final class AppModel: ObservableObject {
             } else {
                 continue
             }
-            if document.id == activeID { active = entries.count - 1 }
+            if document.id == focusedWindow?.primaryID { active = entries.count - 1 }
         }
         let session = Session(entries: entries, active: active, folder: folder.flatMap { FileAccess.bookmark(for: $0.url) })
         defaults.set(try? JSONEncoder().encode(session), forKey: "session")
@@ -347,9 +408,9 @@ final class AppModel: ObservableObject {
             if index == session.active { activeDocument = document }
         }
         documents = restored + documents
-        if activeID == nil, let target = activeDocument ?? restored.last {
-            activeID = target.id
-            compactColumn = .detail
+        if let window = focusedWindow, window.primaryID == nil, let target = activeDocument ?? restored.last {
+            window.primaryID = target.id
+            window.compactColumn = .detail
         }
     }
 }
@@ -357,5 +418,5 @@ final class AppModel: ObservableObject {
 /// Actions that menus and keyboard shortcuts send to the visible editor.
 enum EditorCommand {
     case find, replace, findInFolder, goToLine, togglePreview, save, saveAs, outline
-    case openFile, openFolder, closeDocument, browseFiles
+    case openFile, openFolder, closeDocument, browseFiles, toggleSplit
 }
