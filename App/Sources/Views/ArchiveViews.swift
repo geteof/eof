@@ -212,11 +212,30 @@ struct ArchiveContents: View {
         let result = await Task.detached { Result { try Archives.contents(of: url) } }.value
         switch result {
         case .success(let listing):
-            items = listing.items.sorted { $0.path.localizedStandardCompare($1.path) == .orderedAscending }
+            items = ArchiveContents.withFolders(listing.items)
             total = listing.total
         case .failure(let failure):
             error = failure.localizedDescription
         }
+    }
+
+    /// Many archives list only files. Adds a row for each folder they imply, so the indented
+    /// entries sit under a visible parent, and sorts the result by path.
+    static func withFolders(_ items: [ArchiveItem]) -> [ArchiveItem] {
+        var known = Set(items.filter(\.isDirectory).map { $0.path.hasSuffix("/") ? String($0.path.dropLast()) : $0.path })
+        var result = items
+        var nextID = (items.map(\.id).max() ?? 0) + 1
+        for item in items {
+            let parts = item.path.split(separator: "/")
+            for depth in stride(from: 1, to: parts.count, by: 1) {
+                let folder = parts[..<depth].joined(separator: "/")
+                if known.insert(folder).inserted {
+                    result.append(ArchiveItem(id: nextID, path: folder + "/", size: nil, isDirectory: true))
+                    nextID += 1
+                }
+            }
+        }
+        return result.sorted { $0.path.localizedStandardCompare($1.path) == .orderedAscending }
     }
 
     private func extract() {
