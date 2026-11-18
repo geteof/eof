@@ -1,5 +1,6 @@
 #if DEBUG
 import SwiftUI
+import EOFCore
 
 /// Launch arguments for checking screens in the simulator without tapping through the UI.
 ///
@@ -55,31 +56,58 @@ enum DebugLaunch {
             try "nested".write(to: scratch.appendingPathComponent("folder/inner/b.txt"), atomically: true, encoding: .utf8)
             try "single".write(to: scratch.appendingPathComponent("one.md"), atomically: true, encoding: .utf8)
 
-            let folderZip = try Archives.compress([scratch.appendingPathComponent("folder")], archiveName: "Archive")
+            let folder = scratch.appendingPathComponent("folder")
+            let progress = Progress(totalUnitCount: 1)
+            let folderZip = try Archives.compress([folder], format: .zip, archiveName: "Archive", progress: progress)
             check("folder archive name", folderZip.lastPathComponent == "folder.zip", folderZip.lastPathComponent)
-            let listed = Archives.contents(of: folderZip)
-            let paths = (listed?.items.map(\.path) ?? []).sorted()
+            check("zip reports progress", progress.fractionCompleted == 1, "\(progress.fractionCompleted)")
+            let paths = ((try? Archives.contents(of: folderZip))?.items.map(\.path) ?? []).sorted()
             check("folder archive lists files", paths.contains("folder/a.txt") && paths.contains("folder/inner/b.txt"), paths.joined(separator: ","))
             let zipSize = (try? folderZip.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0
             check("deflate shrinks text", zipSize > 0 && zipSize < text.utf8.count / 2, "\(zipSize) of \(text.utf8.count)")
 
-            let fileZip = try Archives.compress([scratch.appendingPathComponent("one.md")], archiveName: "Archive")
+            let fileZip = try Archives.compress([scratch.appendingPathComponent("one.md")], format: .zip, archiveName: "Archive")
             check("file archive name", fileZip.lastPathComponent == "one.zip", fileZip.lastPathComponent)
 
-            let both = try Archives.compress([scratch.appendingPathComponent("one.md"), scratch.appendingPathComponent("folder")], archiveName: "Archive")
+            let both = try Archives.compress([scratch.appendingPathComponent("one.md"), folder], format: .zip, archiveName: "Archive")
             check("multi archive name", both.lastPathComponent == "Archive.zip", both.lastPathComponent)
-            let bothPaths = (Archives.contents(of: both)?.items.map(\.path) ?? []).sorted()
+            let bothPaths = ((try? Archives.contents(of: both))?.items.map(\.path) ?? []).sorted()
             check("multi archive lists both", bothPaths.contains("one.md") && bothPaths.contains("folder/inner/b.txt"), bothPaths.joined(separator: ","))
 
-            try manager.removeItem(at: scratch.appendingPathComponent("folder"))
+            for format in [ArchiveFormat.tarGzip, .tarBzip2, .tar] {
+                let made = try Archives.compress([folder], format: format, archiveName: "Archive")
+                check("\(format.displayName) name", made.lastPathComponent == "folder" + format.suffixes[0], made.lastPathComponent)
+                let listed = ((try? Archives.contents(of: made))?.items.map(\.path) ?? [])
+                check("\(format.displayName) lists files", listed.contains("folder/inner/b.txt"), listed.joined(separator: ","))
+            }
+
+            let cancelled = Progress(totalUnitCount: 1)
+            cancelled.cancel()
+            do {
+                _ = try Archives.compress([folder], format: .zip, archiveName: "Archive", progress: cancelled)
+                check("cancel stops zip", false, "no error")
+            } catch {
+                check("cancel stops zip", (error as? CocoaError)?.code == .userCancelled, "\(error)")
+            }
+            check("cancel leaves no file", !manager.fileExists(atPath: scratch.appendingPathComponent("folder 2.zip").path))
+
+            try manager.removeItem(at: folder)
+            // One top-level folder in the archive: it comes out as itself, not nested in another folder.
             let extracted = try Archives.extract(folderZip)
             check("extract folder name", extracted.lastPathComponent == "folder", extracted.lastPathComponent)
-            let restored = try? String(contentsOf: extracted.appendingPathComponent("folder/a.txt"), encoding: .utf8)
+            let restored = try? String(contentsOf: extracted.appendingPathComponent("a.txt"), encoding: .utf8)
             check("extract restores contents", restored == text, "\(restored?.count ?? -1) characters")
-            check("extract restores nested", manager.fileExists(atPath: extracted.appendingPathComponent("folder/inner/b.txt").path))
+            check("extract restores nested", manager.fileExists(atPath: extracted.appendingPathComponent("inner/b.txt").path))
             let again = try Archives.extract(folderZip)
             check("second extract gets a new name", again.lastPathComponent == "folder 2", again.lastPathComponent)
-            check("unreadable archive is refused", Archives.contents(of: scratch.appendingPathComponent("one.md")) == nil)
+            let fromTar = try Archives.extract(scratch.appendingPathComponent("folder.tar.gz"))
+            check("extract tar.gz", manager.fileExists(atPath: fromTar.appendingPathComponent("inner/b.txt").path), fromTar.lastPathComponent)
+            // Several top-level items: they go into a folder named after the archive.
+            let multi = try Archives.extract(both)
+            check("multi extract folder", multi.lastPathComponent == "Archive" && manager.fileExists(atPath: multi.appendingPathComponent("one.md").path), multi.lastPathComponent)
+            check("unreadable archive is refused", (try? Archives.contents(of: scratch.appendingPathComponent("one.md"))) == nil)
+            let leftovers = (try? manager.contentsOfDirectory(atPath: scratch.path).filter { $0.hasPrefix(".eof") }) ?? []
+            check("no staging folders left", leftovers.isEmpty, leftovers.joined(separator: ","))
         } catch {
             check("no error thrown", false, "\(error)")
         }

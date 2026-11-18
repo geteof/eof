@@ -226,8 +226,11 @@ private struct FolderPage: View {
     @State private var deleting: [FileEntry] = []
     @State private var moving: [URL] = []
     @State private var isMoving = false
-    /// Shown over the list while an archive is being written or unpacked.
-    @State private var busy: String?
+    /// Compressing or extracting, with its progress and result.
+    @StateObject private var job = ArchiveJob()
+    /// An item just created here: scrolled to and highlighted for a moment.
+    @State private var fresh: String?
+    @State private var toast: String?
 
     private enum NamePrompt: Identifiable {
         case newFile, newFolder, rename
@@ -270,28 +273,35 @@ private struct FolderPage: View {
     var body: some View {
         Group {
             if showsGrid {
-                ScrollView {
-                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 104, maximum: 150), spacing: 10)], spacing: 14) {
-                        ForEach(shown) { entry in
-                            cell(entry)
+                ScrollViewReader { proxy in
+                    ScrollView {
+                        LazyVGrid(columns: [GridItem(.adaptive(minimum: 104, maximum: 150), spacing: 10)], spacing: 14) {
+                            ForEach(shown) { entry in
+                                cell(entry)
+                            }
                         }
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 10)
                     }
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 10)
+                    .onChange(of: listing.entries) { _, _ in revealFresh(proxy) }
                 }
             } else {
-                List {
-                    if let error = listing.error {
-                        Text(verbatim: error)
-                            .foregroundStyle(.secondary)
+                ScrollViewReader { proxy in
+                    List {
+                        if let error = listing.error {
+                            Text(verbatim: error)
+                                .foregroundStyle(.secondary)
+                        }
+                        ForEach(shown) { entry in
+                            row(entry)
+                        }
                     }
-                    ForEach(shown) { entry in
-                        row(entry)
-                    }
+                    .listStyle(.plain)
+                    .onChange(of: listing.entries) { _, _ in revealFresh(proxy) }
                 }
-                .listStyle(.plain)
             }
         }
+        .disabled(job.isRunning)
         .overlay {
             if listing.isLoading {
                 ProgressView()
@@ -303,18 +313,34 @@ private struct FolderPage: View {
                 }
             }
         }
-        .overlay {
-            if let busy {
-                VStack(spacing: 12) {
-                    ProgressView()
-                    Text(verbatim: busy)
-                        .font(.footnote)
-                }
-                .padding(22)
-                .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .overlay { ArchiveJobCard(job: job) }
+        .overlay(alignment: .bottom) {
+            if let toast {
+                Toast(text: toast, systemImage: "checkmark.circle.fill")
             }
         }
-        .disabled(busy != nil)
+        .animation(.snappy, value: toast)
+        .task(id: toast) {
+            guard toast != nil else { return }
+            try? await Task.sleep(for: .seconds(3))
+            toast = nil
+            fresh = nil
+        }
+        .onReceive(job.$outcome) { outcome in
+            switch outcome {
+            case .created(let created):
+                announce(created)
+            case .failed(let error):
+                fail(error)
+            case nil:
+                break
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .eofFolderChanged)) { note in
+            guard let folder = note.object as? URL, folder.standardizedFileURL.path == url.standardizedFileURL.path else { return }
+            if let created = note.userInfo?["created"] as? URL { fresh = created.lastPathComponent }
+            reload()
+        }
         .searchable(text: $query, placement: .navigationBarDrawer(displayMode: .automatic), prompt: Text("Filter by Name"))
         .textInputAutocapitalization(.never)
         .autocorrectionDisabled()
@@ -399,7 +425,7 @@ private struct FolderPage: View {
         .simultaneousGesture(TapGesture(count: 2).onEnded {
             if !isSelecting, !entry.isDirectory { open(entry.url) }
         })
-        .listRowBackground(!isSelecting && wide && selection?.url.standardizedFileURL.path == entry.url.standardizedFileURL.path ? Color.accentColor.opacity(0.16) : nil)
+        .listRowBackground(isFresh(entry) ? Color.green.opacity(0.18) : (!isSelecting && wide && selection?.url.standardizedFileURL.path == entry.url.standardizedFileURL.path ? Color.accentColor.opacity(0.16) : nil))
         .contextMenu {
             actions(for: entry)
         } preview: {
@@ -432,7 +458,7 @@ private struct FolderPage: View {
         Button {
             tap(entry)
         } label: {
-            GridCell(entry: entry, isOpen: isOpen(entry), isHighlighted: !isSelecting && wide && selection?.url.standardizedFileURL.path == entry.url.standardizedFileURL.path)
+            GridCell(entry: entry, isOpen: isOpen(entry), isHighlighted: isFresh(entry) || (!isSelecting && wide && selection?.url.standardizedFileURL.path == entry.url.standardizedFileURL.path))
                 .overlay(alignment: .topTrailing) {
                     if isSelecting {
                         mark(entry)
@@ -455,6 +481,13 @@ private struct FolderPage: View {
 
     @ViewBuilder
     private func actions(for entry: FileEntry) -> some View {
+        if Archives.isArchive(entry.url) {
+            Button {
+                extract(entry)
+            } label: {
+                Label("Extract Here", systemImage: "arrow.up.bin")
+            }
+        }
         if !entry.isDirectory {
             Button {
                 open(entry.url)
@@ -491,17 +524,8 @@ private struct FolderPage: View {
                 Label("Duplicate", systemImage: "plus.square.on.square")
             }
         }
-        if Archives.isArchive(entry.url) {
-            Button {
-                extract(entry)
-            } label: {
-                Label("Extract", systemImage: "arrow.up.bin")
-            }
-        }
-        Button {
-            compress([entry.url])
-        } label: {
-            Label("Compress", systemImage: "archivebox")
+        if !Archives.isArchive(entry.url) {
+            compressMenu([entry.url])
         }
         Button {
             isSelecting = true
@@ -635,12 +659,8 @@ private struct FolderPage: View {
                 }
                 .disabled(pickedEntries.allSatisfy(\.isDirectory))
                 Spacer()
-                Button {
-                    compress(Array(picked))
-                } label: {
-                    Label("Compress", systemImage: "archivebox")
-                }
-                .disabled(picked.isEmpty)
+                compressMenu(Array(picked))
+                    .disabled(picked.isEmpty)
                 Spacer()
                 Button(role: .destructive) {
                     deleting = pickedEntries
@@ -781,31 +801,55 @@ private struct FolderPage: View {
         reload()
     }
 
-    private func compress(_ urls: [URL]) {
+    /// "Compress" with the format as a submenu; ZIP first, since every system opens it.
+    private func compressMenu(_ urls: [URL]) -> some View {
+        Menu {
+            ForEach(ArchiveFormat.creatable) { format in
+                Button(format.displayName) { compress(urls, as: format) }
+            }
+        } label: {
+            Label("Compress", systemImage: "archivebox")
+        } primaryAction: {
+            compress(urls, as: .zip)
+        }
+    }
+
+    private func compress(_ urls: [URL], as format: ArchiveFormat) {
         guard !urls.isEmpty else { return }
         documents(underAny: urls).forEach { $0.autosave() }
-        busy = String(localized: "Compressing…")
+        endSelection()
         let archiveName = String(localized: "Archive")
-        DispatchQueue.global(qos: .userInitiated).async {
-            let result = Result { try Archives.compress(urls, archiveName: archiveName) }
-            DispatchQueue.main.async { finishArchive(result) }
+        job.run(String(localized: "Compressing…"), determinate: Archives.reportsProgress(format)) { progress in
+            try Archives.compress(urls, format: format, archiveName: archiveName, progress: progress)
         }
     }
 
     private func extract(_ entry: FileEntry) {
-        busy = String(localized: "Extracting…")
         let url = entry.url
-        DispatchQueue.global(qos: .userInitiated).async {
-            let result = Result { try Archives.extract(url) }
-            DispatchQueue.main.async { finishArchive(result) }
+        job.run(String(localized: "Extracting…"), determinate: Archives.format(url).map(Archives.reportsProgress) ?? false) { progress in
+            try Archives.extract(url, progress: progress)
         }
     }
 
-    private func finishArchive(_ result: Result<URL, Error>) {
-        busy = nil
-        if case .failure(let error) = result { fail(error) }
-        endSelection()
+    /// Says what was made, then scrolls to it and highlights it once the list has reloaded.
+    private func announce(_ created: URL) {
+        let isDirectory = (try? created.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) ?? false
+        toast = isDirectory
+            ? String(localized: "Extracted to “\(created.lastPathComponent)”")
+            : String(localized: "Created “\(created.lastPathComponent)”")
+        fresh = created.lastPathComponent
+        job.clearOutcome()
         reload()
+    }
+
+    private func isFresh(_ entry: FileEntry) -> Bool {
+        fresh != nil && entry.name == fresh
+    }
+
+    private func revealFresh(_ proxy: ScrollViewProxy) {
+        guard let fresh, let entry = shown.first(where: { $0.name == fresh }) else { return }
+        withAnimation { proxy.scrollTo(entry.id, anchor: .center) }
+        if wide, !entry.isDirectory { selection = entry }
     }
 
     /// Hands the items to the system's move sheet, which can put them in any folder the user can reach.
@@ -974,7 +1018,7 @@ private struct FileContentPreview: View {
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if Archives.isArchive(entry.url) {
-                ArchiveContents(url: entry.url)
+                ArchiveContents(url: entry.url, showsActions: live)
             } else if FileKind.canPreview(entry.url) {
                 if live {
                     QuickLookView(url: entry.url)
@@ -1013,63 +1057,6 @@ private struct FileContentPreview: View {
             text = result.0
             bytes = result.1
             loaded = true
-        }
-    }
-}
-
-/// The files inside a zip archive, listed without unpacking it.
-struct ArchiveContents: View {
-    let url: URL
-    @State private var items: [Archives.Item]?
-    @State private var total = 0
-    @State private var failed = false
-
-    var body: some View {
-        Group {
-            if let items {
-                List {
-                    ForEach(items) { item in
-                        HStack(spacing: 10) {
-                            Image(systemName: item.isDirectory ? "folder" : "doc")
-                                .foregroundStyle(.secondary)
-                                .frame(width: 20)
-                            Text(verbatim: item.path)
-                                .font(.system(size: 12, design: .monospaced))
-                                .lineLimit(2)
-                                .truncationMode(.middle)
-                            Spacer(minLength: 6)
-                            if !item.isDirectory {
-                                Text(verbatim: ByteCountFormatter.string(fromByteCount: Int64(item.size), countStyle: .file))
-                                    .font(.caption2)
-                                    .foregroundStyle(.secondary)
-                            }
-                        }
-                        .listRowInsets(EdgeInsets(top: 4, leading: 12, bottom: 4, trailing: 12))
-                    }
-                    if total > items.count {
-                        Text("and \(total - items.count) more items")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                }
-                .listStyle(.plain)
-                .environment(\.defaultMinListRowHeight, 26)
-            } else if failed {
-                ContentUnavailableView("No Preview", systemImage: "archivebox", description: Text("This archive could not be read."))
-            } else {
-                ProgressView()
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-            }
-        }
-        .task(id: url) {
-            let url = url
-            let result = await Task.detached { Archives.contents(of: url) }.value
-            if let result {
-                items = result.items
-                total = result.total
-            } else {
-                failed = true
-            }
         }
     }
 }

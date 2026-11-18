@@ -31,6 +31,16 @@
         }
       }
     },
+    "%@ unpacked": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "解压后 %@"
+          }
+        }
+      }
+    },
     "%lld Selected": {
       "localizations": {
         "zh-Hans": {
@@ -220,6 +230,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "取消"
+          }
+        }
+      }
+    },
+    "Cannot Open Archive": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无法打开压缩包"
           }
         }
       }
@@ -494,6 +514,16 @@
         }
       }
     },
+    "Created “%@”": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已创建“%@”"
+          }
+        }
+      }
+    },
     "Dark Theme": {
       "localizations": {
         "zh-Hans": {
@@ -743,6 +773,26 @@
           "stringUnit": {
             "state": "translated",
             "value": "解压"
+          }
+        }
+      }
+    },
+    "Extract Here": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "解压到此处"
+          }
+        }
+      }
+    },
+    "Extracted to “%@”": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已解压到“%@”"
           }
         }
       }
@@ -2177,6 +2227,26 @@
         }
       }
     },
+    "The archive contains a path that points outside its folder: %@": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "压缩包里有指向文件夹外部的路径：%@"
+          }
+        }
+      }
+    },
+    "The archive could not be read. It may be damaged, encrypted, or in a variant EOF does not support.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无法读取这个压缩包。它可能已损坏、已加密，或使用了 EOF 不支持的格式变体。"
+          }
+        }
+      }
+    },
     "The text could not be decoded.": {
       "localizations": {
         "zh-Hans": {
@@ -2227,12 +2297,12 @@
         }
       }
     },
-    "This archive could not be read.": {
+    "This archive is larger than %@, the most EOF can handle in this format. ZIP archives have no such limit.": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "无法读取这个压缩包。"
+            "value": "这个压缩包超过 %@，是 EOF 处理这种格式的上限。ZIP 压缩包没有这个限制。"
           }
         }
       }
