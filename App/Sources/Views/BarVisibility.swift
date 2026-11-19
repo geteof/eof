@@ -53,3 +53,22 @@ final class BarVisibility: ObservableObject {
 enum PreviewLayout: String {
     case split, previewOnly
 }
+
+/// On iPhone Duo, iOS 27 moves the status bar and toolbar buttons into a column at the side of
+/// the screen. EOF keeps them in a horizontal bar at the top instead, as Safari does, so the text
+/// gets the full width. A NavigationSplitView takes this preference from its trailing column.
+struct HorizontalBars: ViewModifier {
+    func body(content: Content) -> some View {
+        if #available(iOS 27.1, *) {
+            content.toolbarVerticalBehavior(.disabled)
+        } else {
+            content
+        }
+    }
+}
+
+extension View {
+    func horizontalBars() -> some View {
+        modifier(HorizontalBars())
+    }
+}

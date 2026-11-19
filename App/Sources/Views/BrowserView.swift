@@ -161,8 +161,10 @@ struct BrowserView: View {
             HStack(spacing: 0) {
                 NavigationStack(path: $path) {
                     FolderPage(url: root, root: root, wide: wide, selection: $selection, open: open, popTo: popTo, push: { path.append($0) })
+                        .horizontalBars()
                         .navigationDestination(for: URL.self) { folder in
                             FolderPage(url: folder, root: root, wide: wide, selection: $selection, open: open, popTo: popTo, push: { path.append($0) })
+                                .horizontalBars()
                         }
                 }
                 .frame(width: wide ? min(max(300, proxy.size.width * 0.44), 460) : nil)
@@ -170,6 +172,7 @@ struct BrowserView: View {
                     Divider()
                     NavigationStack {
                         PreviewPane(entry: selection, open: open)
+                            .horizontalBars()
                     }
                 }
             }

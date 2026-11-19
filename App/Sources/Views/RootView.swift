@@ -29,6 +29,7 @@ struct RootView: View {
                 .navigationSplitViewColumnWidth(min: 260, ideal: 330, max: 440)
         } detail: {
             EditorArea(startImport: startImport)
+                .horizontalBars()
         }
         .navigationSplitViewStyle(.balanced)
         .environmentObject(window)
