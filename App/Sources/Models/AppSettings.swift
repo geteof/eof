@@ -38,6 +38,8 @@ final class AppSettings: ObservableObject {
     @Published var defaultLineEnding: LineEnding { didSet { defaults.set(defaultLineEnding.rawValue, forKey: "defaultLineEnding") } }
     @Published var previewAllowsJavaScript: Bool { didSet { defaults.set(previewAllowsJavaScript, forKey: "previewJS") } }
     @Published var showHiddenFiles: Bool { didSet { defaults.set(showHiddenFiles, forKey: "hiddenFiles") } }
+    /// Slide the navigation bar and tabs away while scrolling down, as Safari does.
+    @Published var hideBarsOnScroll: Bool { didSet { defaults.set(hideBarsOnScroll, forKey: "hideBarsOnScroll") } }
 
     static let fontSizeRange: ClosedRange<Double> = 8...40
 
@@ -71,6 +73,7 @@ final class AppSettings: ObservableObject {
         defaultLineEnding = LineEnding(rawValue: d.string(forKey: "defaultLineEnding") ?? "") ?? .lf
         previewAllowsJavaScript = bool("previewJS", false)
         showHiddenFiles = bool("hiddenFiles", true)
+        hideBarsOnScroll = bool("hideBarsOnScroll", true)
     }
 
     /// Changes whenever a preference that the editor view draws from changes.

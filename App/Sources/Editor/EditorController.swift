@@ -50,7 +50,7 @@ private struct BracketPair: CharacterPair {
 ///
 /// Editing, line numbers, indentation and syntax colouring are Runestone's; this class connects
 /// them to the document, the settings and the app's own commands.
-final class EditorController: NSObject, TextViewDelegate, EditorKeyCommands {
+final class EditorController: NSObject, TextViewDelegate, UIScrollViewDelegate, EditorKeyCommands {
     let textView = EditorTextView(frame: .zero)
     var view: UIView { textView }
 
@@ -58,6 +58,9 @@ final class EditorController: NSObject, TextViewDelegate, EditorKeyCommands {
     private let settings = AppSettings.shared
     /// Called when the text view starts editing, so a split window knows which pane has focus.
     var onFocus: (() -> Void)?
+    /// Called on every scroll with the offset, the top of the content and whether the user is
+    /// dragging or flinging (rather than the view scrolling to follow the caret).
+    var onScroll: ((_ offset: CGFloat, _ top: CGFloat, _ userDriven: Bool) -> Void)?
     private var theme: RunestoneTheme
     private var appliedStamp: Int?
     private var isReplacingProgrammatically = false
@@ -99,6 +102,8 @@ final class EditorController: NSObject, TextViewDelegate, EditorKeyCommands {
         theme = EditorController.currentTheme()
         super.init()
         textView.editorDelegate = self
+        // Runestone leaves the scroll view's own delegate unused.
+        textView.delegate = self
         textView.commands = self
         textView.autocorrectionType = .no
         textView.autocapitalizationType = .none
@@ -342,6 +347,10 @@ final class EditorController: NSObject, TextViewDelegate, EditorKeyCommands {
 
     func textViewDidChange(_ textView: TextView) {
         textDidChange()
+    }
+
+    func scrollViewDidScroll(_ scrollView: UIScrollView) {
+        onScroll?(scrollView.contentOffset.y, -scrollView.adjustedContentInset.top, scrollView.isTracking || scrollView.isDecelerating)
     }
 
     func textViewDidBeginEditing(_ textView: TextView) {

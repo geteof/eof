@@ -6,6 +6,8 @@ import WebKit
 /// Rendered Markdown or HTML. Markdown updates in place so the scroll position holds while typing.
 struct PreviewView: UIViewRepresentable {
     let document: EditorDocument
+    /// Reports scrolling, like the editor does, so the bars can hide.
+    var onScroll: ((_ offset: CGFloat, _ top: CGFloat, _ userDriven: Bool) -> Void)?
     @EnvironmentObject private var settings: AppSettings
 
     func makeCoordinator() -> Coordinator { Coordinator() }
@@ -21,17 +23,27 @@ struct PreviewView: UIViewRepresentable {
         webView.backgroundColor = .systemBackground
         webView.scrollView.backgroundColor = .systemBackground
         webView.navigationDelegate = context.coordinator
+        webView.scrollView.delegate = context.coordinator
+        context.coordinator.onScroll = onScroll
         context.coordinator.start(document: document, webView: webView, isMarkdown: isMarkdown)
         return webView
     }
 
-    func updateUIView(_ webView: WKWebView, context: Context) {}
+    func updateUIView(_ webView: WKWebView, context: Context) {
+        context.coordinator.onScroll = onScroll
+    }
 
     static func dismantleUIView(_ webView: WKWebView, coordinator: Coordinator) {
         coordinator.stop()
     }
 
-    final class Coordinator: NSObject, WKNavigationDelegate {
+    final class Coordinator: NSObject, WKNavigationDelegate, UIScrollViewDelegate {
+        var onScroll: ((CGFloat, CGFloat, Bool) -> Void)?
+
+        func scrollViewDidScroll(_ scrollView: UIScrollView) {
+            onScroll?(scrollView.contentOffset.y, -scrollView.adjustedContentInset.top, scrollView.isTracking || scrollView.isDecelerating)
+        }
+
         private var subscription: AnyCancellable?
         private weak var webView: WKWebView?
         private weak var document: EditorDocument?

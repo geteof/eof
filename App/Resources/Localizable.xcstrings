@@ -727,6 +727,16 @@
         }
       }
     },
+    "Editor and Preview": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "编辑器与预览"
+          }
+        }
+      }
+    },
     "Empty File": {
       "localizations": {
         "zh-Hans": {
@@ -1053,6 +1063,26 @@
           "stringUnit": {
             "state": "translated",
             "value": "十六进制"
+          }
+        }
+      }
+    },
+    "Hide Bars While Scrolling": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "滚动时隐藏工具栏"
+          }
+        }
+      }
+    },
+    "Hide Editor": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "隐藏编辑器"
           }
         }
       }
@@ -1757,6 +1787,26 @@
         }
       }
     },
+    "Preview Layout": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "预览布局"
+          }
+        }
+      }
+    },
+    "Preview Only": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "仅预览"
+          }
+        }
+      }
+    },
     "Previous Match": {
       "localizations": {
         "zh-Hans": {
@@ -2063,6 +2113,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "分享"
+          }
+        }
+      }
+    },
+    "Show Editor": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "显示编辑器"
           }
         }
       }

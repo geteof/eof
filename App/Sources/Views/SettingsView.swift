@@ -36,6 +36,7 @@ struct SettingsView: View {
                     Toggle("Highlight Current Line", isOn: $settings.highlightCurrentLine)
                     Toggle("Show Invisibles", isOn: $settings.showInvisibles)
                     Toggle("Keyboard Symbol Bar", isOn: $settings.showAccessoryBar)
+                    Toggle("Hide Bars While Scrolling", isOn: $settings.hideBarsOnScroll)
                 }
                 Section {
                     Toggle("Indent with Spaces", isOn: $settings.insertSpaces)

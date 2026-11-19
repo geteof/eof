@@ -40,6 +40,8 @@ struct EditorScreen: View {
     @State private var findWithReplace = false
     @State private var showPreview = false
     @State private var showHex = false
+    @StateObject private var bars = BarVisibility()
+    @AppStorage("previewLayout") private var previewLayout = PreviewLayout.split
     @State private var sheet: EditorSheet?
     @State private var showGoToLine = false
     @State private var goToLineText = ""
@@ -57,10 +59,13 @@ struct EditorScreen: View {
             let sideBySide = proxy.size.width >= 700
             VStack(spacing: 0) {
                 if pane == .secondary {
-                    secondaryHeader
-                    Divider()
-                } else if model.documents.count > 1 {
+                    if !bars.hidden {
+                        secondaryHeader
+                        Divider()
+                    }
+                } else if model.documents.count > 1, !bars.hidden {
                     TabStrip()
+                        .transition(.move(edge: .top).combined(with: .opacity))
                     Divider()
                 }
                 if let notice = document.notice {
@@ -89,6 +94,9 @@ struct EditorScreen: View {
             .simultaneousGesture(TapGesture().onEnded { focusHere() })
         }
         .modifier(PaneChrome(isPrimary: pane == .primary, title: document.name, titleMenu: titleMenu, toolbar: toolbarButtons))
+        .toolbar(pane == .primary && bars.hidden ? .hidden : .automatic, for: .navigationBar)
+        .onChange(of: showFind) { _, shown in if shown { bars.reveal() } }
+        .onChange(of: settings.hideBarsOnScroll) { _, on in if !on { bars.reveal() } }
         .sheet(item: $sheet) { sheet in
             switch sheet {
             case .outline: OutlineSheet(document: document)
@@ -140,10 +148,18 @@ struct EditorScreen: View {
             if !window.isSplit || window.focusedPane == pane { handle(command) }
         }
         .onAppear {
-            document.controller.onFocus = { [weak window, weak model] in
-                guard let window else { return }
-                model?.focusedWindow = window
-                window.focusedPane = pane
+            document.controller.onScroll = { [bars, settings] offset, top, userDriven in
+                guard settings.hideBarsOnScroll else { return }
+                bars.scrolled(offset: offset, top: top, userDriven: userDriven)
+            }
+            // Weak, so a closed window is not kept alive by a document it once showed.
+            let ownWindow = window
+            let ownModel = model
+            let ownPane = pane
+            document.controller.onFocus = { [weak ownWindow, weak ownModel] in
+                guard let ownWindow else { return }
+                ownModel?.focusedWindow = ownWindow
+                ownWindow.focusedPane = ownPane
             }
             #if DEBUG
             DebugLaunch.apply(to: document, showFind: &showFind, findWithReplace: &findWithReplace, showPreview: &showPreview, sheet: &sheet)
@@ -172,18 +188,43 @@ struct EditorScreen: View {
                     .onAppear { document.loadBinaryData() }
             }
         } else if showPreview, canPreview {
-            if sideBySide {
+            if sideBySide, previewLayout == .split {
                 HStack(spacing: 0) {
                     editor
                     Divider()
-                    PreviewView(document: document)
+                    preview
+                        .overlay(alignment: .topLeading) { previewLayoutButton }
                 }
             } else {
-                PreviewView(document: document)
+                preview
+                    .overlay(alignment: .topLeading) { if sideBySide { previewLayoutButton } }
             }
         } else {
             editor
         }
+    }
+
+    private var preview: some View {
+        PreviewView(document: document) { [bars, settings] offset, top, userDriven in
+            guard settings.hideBarsOnScroll else { return }
+            bars.scrolled(offset: offset, top: top, userDriven: userDriven)
+        }
+    }
+
+    /// Hides or brings back the source beside the preview.
+    private var previewLayoutButton: some View {
+        Button {
+            withAnimation(.snappy) { previewLayout = previewLayout == .split ? .previewOnly : .split }
+        } label: {
+            Label(previewLayout == .split ? "Hide Editor" : "Show Editor",
+                  systemImage: previewLayout == .split ? "arrow.left.to.line" : "arrow.right.to.line")
+                .labelStyle(.iconOnly)
+                .font(.footnote.weight(.semibold))
+                .frame(width: 32, height: 32)
+                .background(.regularMaterial, in: Circle())
+        }
+        .buttonStyle(.plain)
+        .padding(10)
     }
 
     private var editor: some View {
@@ -208,10 +249,16 @@ struct EditorScreen: View {
                     Label("Find", systemImage: "magnifyingglass")
                 }
                 if canPreview {
-                    Button {
-                        showPreview.toggle()
+                    // A tap toggles the preview; holding offers the layout.
+                    Menu {
+                        Picker("Preview Layout", selection: $previewLayout) {
+                            Label("Editor and Preview", systemImage: "rectangle.split.2x1").tag(PreviewLayout.split)
+                            Label("Preview Only", systemImage: "eye").tag(PreviewLayout.previewOnly)
+                        }
                     } label: {
                         Label("Preview", systemImage: showPreview ? "eye.fill" : "eye")
+                    } primaryAction: {
+                        showPreview.toggle()
                     }
                 }
             }
