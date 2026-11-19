@@ -77,10 +77,13 @@ struct EditorScreen: View {
                     Divider()
                 }
                 content(sideBySide: sideBySide)
-                Divider()
-                StatusBar(document: document, status: document.status, sheet: $sheet) {
-                    goToLineText = ""
-                    showGoToLine = true
+                if !bars.hidden {
+                    Divider()
+                    StatusBar(document: document, status: document.status, sheet: $sheet) {
+                        goToLineText = ""
+                        showGoToLine = true
+                    }
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
                 }
             }
             // A thin line marks the pane that menu commands and the keyboard go to.
@@ -92,6 +95,9 @@ struct EditorScreen: View {
                 }
             }
         }
+        // With the bars away, the text runs under the clock and down to the screen's bottom edge,
+        // as a page does in Safari. Only for a window showing one pane.
+        .ignoresSafeArea(.container, edges: bars.hidden && !window.isSplit ? [.top, .bottom] : [])
         .modifier(PaneChrome(isPrimary: pane == .primary, title: document.name, titleMenu: titleMenu, toolbar: toolbarButtons))
         .toolbar(pane == .primary && bars.hidden ? .hidden : .automatic, for: .navigationBar)
         .onChange(of: showFind) { _, shown in if shown { bars.reveal() } }
@@ -192,11 +198,11 @@ struct EditorScreen: View {
                     editor
                     Divider()
                     preview
-                        .overlay(alignment: .bottomLeading) { previewLayoutButton }
+                        .overlay(alignment: .bottomLeading) { if !bars.hidden { previewLayoutButton } }
                 }
             } else {
                 preview
-                    .overlay(alignment: .bottomLeading) { if sideBySide { previewLayoutButton } }
+                    .overlay(alignment: .bottomLeading) { if sideBySide, !bars.hidden { previewLayoutButton } }
             }
         } else {
             editor
