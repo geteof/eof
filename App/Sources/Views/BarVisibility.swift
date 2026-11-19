@@ -10,6 +10,9 @@ final class BarVisibility: ObservableObject {
     private let threshold: CGFloat = 28
 
     func scrolled(offset: CGFloat, top: CGFloat, userDriven: Bool) {
+        #if DEBUG
+        lastScroll = "offset=\(Int(offset)) top=\(Int(top)) user=\(userDriven)"
+        #endif
         if offset <= top + 4 {
             reveal()
             anchor = offset
@@ -31,8 +34,17 @@ final class BarVisibility: ObservableObject {
 
     func reveal() { set(false) }
 
+    #if DEBUG
+    /// Every change with the scroll that caused it, for the layout report.
+    static var log: [String] = []
+    private var lastScroll = ""
+    #endif
+
     private func set(_ value: Bool) {
         guard hidden != value else { return }
+        #if DEBUG
+        BarVisibility.log.append("\(value ? "hide" : "show") after \(lastScroll)")
+        #endif
         withAnimation(.easeInOut(duration: 0.22)) { hidden = value }
     }
 }

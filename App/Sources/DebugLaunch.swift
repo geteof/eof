@@ -146,7 +146,7 @@ enum DebugLaunch {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { document.controller.goToLine(line) }
         }
         if arguments.contains("-layoutreport") {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 3) { layoutReport(document) }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 15) { layoutReport(document) }
         }
         if arguments.contains("-selftest") {
             DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { selfTest(document) }
@@ -296,6 +296,7 @@ extension DebugLaunch {
         } else {
             lines.append("editor view is not in a window")
         }
+        lines.append("bar changes: " + (BarVisibility.log.isEmpty ? "none" : BarVisibility.log.joined(separator: " | ")))
         let output = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0].appendingPathComponent("layout.txt")
         try? lines.joined(separator: "\n").write(to: output, atomically: true, encoding: .utf8)
     }

@@ -193,11 +193,11 @@ struct EditorScreen: View {
                     editor
                     Divider()
                     preview
-                        .overlay(alignment: .topLeading) { previewLayoutButton }
+                        .overlay(alignment: .bottomLeading) { previewLayoutButton }
                 }
             } else {
                 preview
-                    .overlay(alignment: .topLeading) { if sideBySide { previewLayoutButton } }
+                    .overlay(alignment: .bottomLeading) { if sideBySide { previewLayoutButton } }
             }
         } else {
             editor
