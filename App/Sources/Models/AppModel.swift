@@ -150,7 +150,8 @@ final class AppModel: ObservableObject {
     }
 
     @discardableResult
-    func newDocument(text: String = "", name: String? = nil) -> EditorDocument {
+    func newDocument(text: String = "", name: String? = nil, in window: WindowState? = nil) -> EditorDocument {
+        if let window { focusedWindow = window }
         untitledCounter += 1
         let title = name ?? (untitledCounter == 1 ? String(localized: "Untitled") : String(localized: "Untitled \(untitledCounter)"))
         let document = EditorDocument(untitled: title, text: text)
@@ -263,7 +264,8 @@ final class AppModel: ObservableObject {
     // MARK: - Folder
 
     /// Makes `url` the project folder. `browse` also brings up the file browser on it.
-    func openFolder(_ url: URL, browse: Bool = true) {
+    func openFolder(_ url: URL, browse: Bool = true, in window: WindowState? = nil) {
+        if let window { focusedWindow = window }
         closeFolder()
         folderIsScoped = url.startAccessingSecurityScopedResource()
         folder = FileNode(url: url, isDirectory: true)
@@ -295,14 +297,15 @@ final class AppModel: ObservableObject {
         persistRecents()
     }
 
-    func openRecent(_ item: RecentItem) {
+    func openRecent(_ item: RecentItem, in window: WindowState? = nil) {
+        if let window { focusedWindow = window }
         guard let url = FileAccess.resolve(item.bookmark), FileAccess.exists(url) else {
             recents.removeAll { $0.id == item.id }
             persistRecents()
             alert = AppAlert(title: String(localized: "File Not Found"), message: String(localized: "“\(item.name)” was moved or deleted."))
             return
         }
-        if item.isFolder { openFolder(url) } else { open(url) }
+        if item.isFolder { openFolder(url, in: window) } else { open(url, in: window) }
     }
 
     func removeRecent(_ item: RecentItem) {

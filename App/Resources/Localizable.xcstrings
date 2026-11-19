@@ -2327,12 +2327,12 @@
         }
       }
     },
-    "Tap a file to look at it here. Double-tap to open it in the editor.": {
+    "Tap a file to look at it here, then open it in the editor from the top right or its menu.": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "轻点文件可在这里查看，连点两下在编辑器中打开。"
+            "value": "轻点文件可在这里查看，再从右上角或文件菜单在编辑器中打开。"
           }
         }
       }

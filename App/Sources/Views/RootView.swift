@@ -31,15 +31,13 @@ struct RootView: View {
             EditorArea(startImport: startImport)
         }
         .navigationSplitViewStyle(.balanced)
-        // With several windows, new files and folders go to the one last touched.
-        .simultaneousGesture(TapGesture().onEnded { model.focusedWindow = window })
         .environmentObject(window)
         .focusedSceneObject(window)
         .fileImporter(isPresented: $isImporting, allowedContentTypes: importKind == .folder ? [.folder] : [.item], allowsMultipleSelection: importKind == .files) { result in
             switch result {
             case .success(let urls):
                 if importKind == .folder {
-                    if let url = urls.first { model.openFolder(url) }
+                    if let url = urls.first { model.openFolder(url, in: window) }
                 } else {
                     for (index, url) in urls.enumerated() { model.open(url, activate: index == urls.count - 1, in: window) }
                 }
@@ -223,6 +221,7 @@ struct SplitLayout<First: View, Second: View>: View {
 
 struct WelcomeView: View {
     @EnvironmentObject private var model: AppModel
+    @EnvironmentObject private var window: WindowState
     let startImport: (ImportKind) -> Void
 
     var body: some View {
@@ -232,7 +231,7 @@ struct WelcomeView: View {
             Text("Create a file, or open one from Files, iCloud Drive or another app.")
         } actions: {
             Button {
-                model.newDocument()
+                model.newDocument(in: window)
             } label: {
                 Label("New File", systemImage: "square.and.pencil")
             }

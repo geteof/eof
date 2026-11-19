@@ -115,7 +115,7 @@ struct SidebarView: View {
                 Section("Recent") {
                     ForEach(recents.prefix(12)) { item in
                         Button {
-                            model.openRecent(item)
+                            model.openRecent(item, in: window)
                         } label: {
                             Label {
                                 VStack(alignment: .leading, spacing: 2) {
@@ -159,12 +159,12 @@ struct SidebarView: View {
             ToolbarItem(placement: .primaryAction) {
                 Menu {
                     Button {
-                        model.newDocument()
+                        model.newDocument(in: window)
                     } label: {
                         Label("New File", systemImage: "square.and.pencil")
                     }
                     Button {
-                        if let text = UIPasteboard.general.string { model.newDocument(text: text) }
+                        if let text = UIPasteboard.general.string { model.newDocument(text: text, in: window) }
                     } label: {
                         Label("New from Clipboard", systemImage: "doc.on.clipboard")
                     }
@@ -343,11 +343,12 @@ struct FileIcon: View {
 /// New, open file and open folder as three large targets at the top of the sidebar.
 private struct QuickActions: View {
     @EnvironmentObject private var model: AppModel
+    @EnvironmentObject private var window: WindowState
     let startImport: (ImportKind) -> Void
 
     var body: some View {
         HStack(spacing: 8) {
-            tile("New File", systemImage: "square.and.pencil") { model.newDocument() }
+            tile("New File", systemImage: "square.and.pencil") { model.newDocument(in: window) }
             tile("Open File", systemImage: "doc") { startImport(.files) }
             tile("Open Folder", systemImage: "folder") { startImport(.folder) }
         }

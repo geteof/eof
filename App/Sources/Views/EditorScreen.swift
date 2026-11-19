@@ -91,7 +91,6 @@ struct EditorScreen: View {
                         .frame(height: 2)
                 }
             }
-            .simultaneousGesture(TapGesture().onEnded { focusHere() })
         }
         .modifier(PaneChrome(isPrimary: pane == .primary, title: document.name, titleMenu: titleMenu, toolbar: toolbarButtons))
         .toolbar(pane == .primary && bars.hidden ? .hidden : .automatic, for: .navigationBar)
@@ -315,11 +314,7 @@ struct EditorScreen: View {
         .padding(.horizontal, 14)
         .frame(height: 40)
         .background(.bar)
-    }
 
-    private func focusHere() {
-        model.focusedWindow = window
-        if window.focusedPane != pane { window.focusedPane = pane }
     }
 
     @ViewBuilder
@@ -492,7 +487,7 @@ struct EditorScreen: View {
         }
         Section {
             Button {
-                model.newDocument()
+                model.newDocument(in: window)
             } label: {
                 Label("New File", systemImage: "square.and.pencil")
             }

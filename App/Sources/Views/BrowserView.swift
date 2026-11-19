@@ -425,9 +425,6 @@ private struct FolderPage: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .simultaneousGesture(TapGesture(count: 2).onEnded {
-            if !isSelecting, !entry.isDirectory { open(entry.url) }
-        })
         .listRowBackground(isFresh(entry) ? Color.green.opacity(0.18) : (!isSelecting && wide && selection?.url.standardizedFileURL.path == entry.url.standardizedFileURL.path ? Color.accentColor.opacity(0.16) : nil))
         .contextMenu {
             actions(for: entry)
@@ -472,9 +469,6 @@ private struct FolderPage: View {
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .simultaneousGesture(TapGesture(count: 2).onEnded {
-            if !isSelecting, !entry.isDirectory { open(entry.url) }
-        })
         .contextMenu {
             actions(for: entry)
         } preview: {
@@ -1127,7 +1121,7 @@ private struct PreviewPane: View {
                     }
                 }
             } else {
-                ContentUnavailableView("Select a File", systemImage: "doc.text.magnifyingglass", description: Text("Tap a file to look at it here. Double-tap to open it in the editor."))
+                ContentUnavailableView("Select a File", systemImage: "doc.text.magnifyingglass", description: Text("Tap a file to look at it here, then open it in the editor from the top right or its menu."))
             }
         }
         .navigationBarTitleDisplayMode(.inline)
