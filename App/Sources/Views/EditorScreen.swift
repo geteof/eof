@@ -168,6 +168,9 @@ struct EditorScreen: View {
             }
             #if DEBUG
             DebugLaunch.apply(to: document, showFind: &showFind, findWithReplace: &findWithReplace, showPreview: &showPreview, sheet: &sheet)
+            if ProcessInfo.processInfo.arguments.contains("-hidebars") {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 2) { bars.debugHide() }
+            }
             #endif
         }
         .onChange(of: document.language) { _, _ in

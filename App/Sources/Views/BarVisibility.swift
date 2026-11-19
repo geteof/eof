@@ -35,6 +35,11 @@ final class BarVisibility: ObservableObject {
     func reveal() { set(false) }
 
     #if DEBUG
+    /// For screenshots of the hidden state: launch with `-hidebars`.
+    func debugHide() { set(true) }
+    #endif
+
+    #if DEBUG
     /// Every change with the scroll that caused it, for the layout report.
     static var log: [String] = []
     private var lastScroll = ""
