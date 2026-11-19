@@ -32,11 +32,21 @@ final class BarVisibility: ObservableObject {
         }
     }
 
-    func reveal() { set(false) }
+    func reveal() {
+        #if DEBUG
+        if pinned { return }
+        #endif
+        set(false)
+    }
 
     #if DEBUG
-    /// For screenshots of the hidden state: launch with `-hidebars`.
-    func debugHide() { set(true) }
+    /// For screenshots of the hidden state: launch with `-hidebars`. Stays hidden, because a
+    /// preview that finishes loading reports a scroll to the top, which would bring them back.
+    private var pinned = false
+    func debugHide() {
+        set(true)
+        pinned = true
+    }
     #endif
 
     #if DEBUG
