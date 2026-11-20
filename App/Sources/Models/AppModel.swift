@@ -14,7 +14,14 @@ struct RecentItem: Codable, Identifiable, Equatable {
     }
 
     /// A short place name, worked out again from the path so older entries get the new labels.
-    var place: String { FileAccess.displayLocation(URL(fileURLWithPath: path)) }
+    var place: String {
+        let place = FileAccess.displayLocation(URL(fileURLWithPath: path))
+        // "Other App's Folder" from Another App says the same thing twice.
+        return title == name ? place : ""
+    }
+
+    /// The name to show, which differs from the file name only for another app's top folder.
+    var title: String { FileAccess.displayName(URL(fileURLWithPath: path)) }
     var name: String
     var path: String
     var location: String
@@ -32,7 +39,7 @@ final class FileNode: ObservableObject, Identifiable {
     }
 
     var id: URL { url }
-    var name: String { url.lastPathComponent }
+    var name: String { FileAccess.displayName(url) }
 
     init(url: URL, isDirectory: Bool) {
         self.url = url

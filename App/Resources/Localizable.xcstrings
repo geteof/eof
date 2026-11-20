@@ -987,6 +987,16 @@
         }
       }
     },
+    "Folder from Another App": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "其他 App 的文件夹"
+          }
+        }
+      }
+    },
     "Font": {
       "localizations": {
         "zh-Hans": {

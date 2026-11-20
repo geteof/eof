@@ -81,16 +81,22 @@ struct SidebarView: View {
                         Button {
                             model.openRecent(item, in: window)
                         } label: {
-                            LabeledContent {
-                                Text(verbatim: item.place)
-                            } label: {
-                                Label {
-                                    Text(verbatim: item.name)
+                            Label {
+                                // Always name over place: a row that switches between one and two
+                                // lines by name length makes the list look uneven.
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(verbatim: item.title)
                                         .lineLimit(2)
                                         .truncationMode(.middle)
-                                } icon: {
-                                    FileIcon(name: item.name, isFolder: item.isFolder)
+                                    if !item.place.isEmpty {
+                                        Text(verbatim: item.place)
+                                            .font(.footnote)
+                                            .foregroundStyle(.secondary)
+                                            .lineLimit(1)
+                                    }
                                 }
+                            } icon: {
+                                FileIcon(name: item.name, isFolder: item.isFolder)
                             }
                         }
                         .swipeActions {
@@ -227,6 +233,8 @@ private struct OpenDocumentRow: View {
                     Label("Open in New Window", systemImage: "macwindow.badge.plus")
                 }
             }
+        } preview: {
+            DocumentPeek(document: document)
         }
     }
 }
@@ -271,3 +279,31 @@ struct FileIcon: View {
     }
 }
 
+/// What a long press on an open document lifts: an opaque card with the whole name and where
+/// the file lives. The row itself has no background, so lifting it let the editor show through.
+private struct DocumentPeek: View {
+    @ObservedObject var document: EditorDocument
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 12) {
+            FileIcon(name: document.name, size: 28)
+            VStack(alignment: .leading, spacing: 4) {
+                Text(verbatim: document.name)
+                    .font(.headline)
+                    .fixedSize(horizontal: false, vertical: true)
+                Text(verbatim: details)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .padding(16)
+        .frame(width: 320, alignment: .leading)
+        .background(Color(uiColor: .systemBackground))
+    }
+
+    private var details: String {
+        var parts = [document.language.name]
+        if let url = document.url { parts.append(FileAccess.displayLocation(url)) }
+        return parts.joined(separator: " · ")
+    }
+}

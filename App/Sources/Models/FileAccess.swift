@@ -67,6 +67,12 @@ enum FileAccess {
     }
 
     /// A short, readable location for lists: the folder that holds the file.
+    /// The name to show for a file or folder. The top folder another app shares through the
+    /// Files app is called "File Provider Storage" on disk, which means nothing to the user.
+    static func displayName(_ url: URL) -> String {
+        url.lastPathComponent == "File Provider Storage" ? String(localized: "Folder from Another App") : url.lastPathComponent
+    }
+
     static func displayLocation(_ url: URL) -> String {
         let parent = url.deletingLastPathComponent()
         let path = parent.path
