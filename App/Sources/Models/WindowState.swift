@@ -15,6 +15,8 @@ final class WindowState: ObservableObject, Identifiable {
     @Published var focusedPane: EditorPane = .primary
     @Published var compactColumn: NavigationSplitViewColumn = .sidebar
     @Published var showBrowser = false
+    /// The first pane hid its bars while scrolling; the status bar goes with them.
+    @Published var barsHidden = false
     /// Share of the editor area given to the first pane when split.
     @Published var splitFraction: CGFloat = 0.5
     /// Menu and keyboard commands for this window only.

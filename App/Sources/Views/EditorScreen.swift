@@ -100,8 +100,10 @@ struct EditorScreen: View {
         .ignoresSafeArea(.container, edges: bars.hidden && !window.isSplit ? [.top, .bottom] : [])
         .modifier(PaneChrome(isPrimary: pane == .primary, title: document.name, titleMenu: titleMenu, toolbar: toolbarButtons))
         .toolbar(pane == .primary && bars.hidden ? .hidden : .automatic, for: .navigationBar)
-        // The clock and signal go with the bars, so scrolled text gets the whole screen.
-        .statusBarHidden(pane == .primary && bars.hidden)
+        // The clock and signal go with the bars. The window's root applies it: set inside the
+        // split view, the status bar preference never reaches the system.
+        .onChange(of: bars.hidden) { _, hidden in if pane == .primary { window.barsHidden = hidden } }
+        .onDisappear { if pane == .primary { window.barsHidden = false } }
         .onChange(of: showFind) { _, shown in if shown { bars.reveal() } }
         .onChange(of: settings.hideBarsOnScroll) { _, on in if !on { bars.reveal() } }
         .sheet(item: $sheet) { sheet in

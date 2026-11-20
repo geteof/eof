@@ -98,6 +98,8 @@ struct RootView: View {
             default: break
             }
         }
+        .statusBarHidden(window.barsHidden)
+        .animation(.easeInOut(duration: 0.22), value: window.barsHidden)
         // A file or tab dropped at the side of the screen opens a new window with it.
         .onContinueUserActivity(FileDrag.activityType) { activity in
             model.focusedWindow = window
