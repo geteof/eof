@@ -188,6 +188,12 @@ struct EditorScreen: View {
         if document.isBinary {
             if let url = document.url, !showHex, Archives.isArchive(url) {
                 ArchiveContents(url: url)
+            } else if let url = document.url, !showHex, url.pathExtension.lowercased() == "pdf" {
+                PDFPreview(url: url) { [bars, settings] offset, top, userDriven in
+                    guard settings.hideBarsOnScroll else { return }
+                    bars.scrolled(offset: offset, top: top, userDriven: userDriven)
+                }
+                .id(url)
             } else if let url = document.url, !showHex, FileKind.canPreview(url) {
                 QuickLookView(url: url)
                     .id(url)

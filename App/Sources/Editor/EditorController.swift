@@ -237,9 +237,16 @@ final class EditorController: NSObject, TextViewDelegate, UIScrollViewDelegate, 
     var canUndo: Bool { textView.undoManager?.canUndo ?? false }
     var canRedo: Bool { textView.undoManager?.canRedo ?? false }
 
+    /// Selects the whole text and shows it. The text view only draws a selection while it has
+    /// focus, so from a menu, with the editor unfocused, it focuses first.
     func selectAll() {
-        textView.selectedRange = NSRange(location: 0, length: length)
-        selectionDidChange()
+        let all = NSRange(location: 0, length: length)
+        if !textView.isFirstResponder { textView.becomeFirstResponder() }
+        // Taking focus can place the caret; select once that has settled.
+        DispatchQueue.main.async { [self] in
+            textView.selectedRange = all
+            selectionDidChange()
+        }
     }
 
     // MARK: - Appearance
