@@ -79,7 +79,7 @@ struct EditorScreen: View {
                 content(sideBySide: sideBySide)
                 if !bars.hidden {
                     Divider()
-                    StatusBar(document: document, status: document.status, sheet: $sheet) {
+                    StatusBar(document: document, status: document.status, sheet: $sheet, preview: canPreview ? $showPreview : nil) {
                         goToLineText = ""
                         showGoToLine = true
                     }
@@ -155,6 +155,7 @@ struct EditorScreen: View {
             if !window.isSplit || window.focusedPane == pane { handle(command) }
         }
         .onAppear {
+            if settings.openInPreview, canPreview { showPreview = true }
             document.controller.onScroll = { [bars, settings] offset, top, userDriven in
                 guard settings.hideBarsOnScroll else { return }
                 bars.scrolled(offset: offset, top: top, userDriven: userDriven)
@@ -259,16 +260,12 @@ struct EditorScreen: View {
                     Label("Find", systemImage: "magnifyingglass")
                 }
                 if canPreview {
-                    // A tap toggles the preview; holding offers the layout.
-                    Menu {
-                        Picker("Preview Layout", selection: $previewLayout) {
-                            Label("Editor and Preview", systemImage: "rectangle.split.2x1").tag(PreviewLayout.split)
-                            Label("Preview Only", systemImage: "eye").tag(PreviewLayout.previewOnly)
-                        }
+                    // A plain button: when a narrow bar folds it into the overflow menu it still
+                    // toggles, where a menu with a primary action only opened its submenu.
+                    Button {
+                        togglePreview()
                     } label: {
-                        Label("Preview", systemImage: showPreview ? "eye.fill" : "eye")
-                    } primaryAction: {
-                        showPreview.toggle()
+                        Label(showPreview ? "Show Source" : "Preview", systemImage: showPreview ? "eye.fill" : "eye")
                     }
                 }
             }
@@ -361,6 +358,18 @@ struct EditorScreen: View {
 
     @ViewBuilder
     private var moreMenu: some View {
+        // Side by side only fits a wide window; a narrow one always shows the preview alone.
+        if canPreview, horizontalSizeClass == .regular {
+            Section {
+                Picker(selection: $previewLayout) {
+                    Label("Editor and Preview", systemImage: "rectangle.split.2x1").tag(PreviewLayout.split)
+                    Label("Preview Only", systemImage: "eye").tag(PreviewLayout.previewOnly)
+                } label: {
+                    Label("Preview Layout", systemImage: "rectangle.split.2x1")
+                }
+                .pickerStyle(.menu)
+            }
+        }
         if !document.isBinary {
             Section {
                 ControlGroup {
@@ -571,7 +580,7 @@ struct EditorScreen: View {
             goToLineText = ""
             showGoToLine = true
         case .togglePreview:
-            if canPreview { showPreview.toggle() }
+            if canPreview { togglePreview() }
         case .save:
             if document.isUntitled { beginExport() } else { saveNow() }
         case .saveAs:
@@ -603,6 +612,10 @@ struct EditorScreen: View {
         let parts = goToLineText.split(whereSeparator: { $0 == ":" || $0 == "," || $0 == " " }).compactMap { Int($0) }
         guard let line = parts.first else { return }
         document.controller.goToLine(line, column: parts.count > 1 ? parts[1] : 1)
+    }
+
+    private func togglePreview() {
+        withAnimation(.snappy(duration: 0.2)) { showPreview.toggle() }
     }
 
     private func run(_ transform: TextTransform) {

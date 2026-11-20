@@ -6,6 +6,8 @@ struct StatusBar: View {
     @ObservedObject var document: EditorDocument
     @ObservedObject var status: CursorStatus
     @Binding var sheet: EditorSheet?
+    /// Source or preview, for documents that have one. At the bottom so a thumb reaches it.
+    var preview: Binding<Bool>?
     let goToLine: () -> Void
     @EnvironmentObject private var model: AppModel
     @State private var encodingError: String?
@@ -22,6 +24,17 @@ struct StatusBar: View {
                     }
                     Text(verbatim: ByteCountFormatter.string(fromByteCount: Int64(document.byteCount), countStyle: .file))
                 } else {
+                    if let preview {
+                        Picker("View", selection: Binding(get: { preview.wrappedValue }, set: { value in
+                            withAnimation(.snappy(duration: 0.2)) { preview.wrappedValue = value }
+                        })) {
+                            Text("Source").tag(false)
+                            Text("Preview").tag(true)
+                        }
+                        .pickerStyle(.segmented)
+                        .fixedSize()
+                        .controlSize(.mini)
+                    }
                     Button(action: goToLine) {
                         if status.selection > 0 {
                             Text("Ln \(status.line), Col \(status.column) (\(status.selection) selected)")

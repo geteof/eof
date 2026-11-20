@@ -37,6 +37,7 @@ struct SettingsView: View {
                     Toggle("Show Invisibles", isOn: $settings.showInvisibles)
                     Toggle("Keyboard Symbol Bar", isOn: $settings.showAccessoryBar)
                     Toggle("Hide Bars While Scrolling", isOn: $settings.hideBarsOnScroll)
+                    Toggle("Open Markdown and HTML as Preview", isOn: $settings.openInPreview)
                 }
                 Section {
                     Toggle("Indent with Spaces", isOn: $settings.insertSpaces)

@@ -40,6 +40,8 @@ final class AppSettings: ObservableObject {
     @Published var showHiddenFiles: Bool { didSet { defaults.set(showHiddenFiles, forKey: "hiddenFiles") } }
     /// Slide the navigation bar and tabs away while scrolling down, as Safari does.
     @Published var hideBarsOnScroll: Bool { didSet { defaults.set(hideBarsOnScroll, forKey: "hideBarsOnScroll") } }
+    /// Markdown, HTML and SVG files open showing the preview rather than the source.
+    @Published var openInPreview: Bool { didSet { defaults.set(openInPreview, forKey: "openInPreview") } }
 
     static let fontSizeRange: ClosedRange<Double> = 8...40
 
@@ -74,6 +76,7 @@ final class AppSettings: ObservableObject {
         previewAllowsJavaScript = bool("previewJS", false)
         showHiddenFiles = bool("hiddenFiles", true)
         hideBarsOnScroll = bool("hideBarsOnScroll", true)
+        openInPreview = bool("openInPreview", false)
     }
 
     /// Changes whenever a preference that the editor view draws from changes.
