@@ -119,6 +119,13 @@ struct RootView: View {
         #if DEBUG
         if DebugLaunch.isActive {
             DebugLaunch.open(in: model)
+            if DebugLaunch.showsSidebar {
+                // Files load asynchronously and each one shows the editor, so wait for them first.
+                DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                    columnVisibility = .all
+                    window.compactColumn = .sidebar
+                }
+            }
             return
         }
         #endif

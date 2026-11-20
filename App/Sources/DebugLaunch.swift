@@ -16,12 +16,15 @@ import EOFCore
 ///     -browse [subfolder]  show the file browser on the folder, optionally inside a subfolder
 ///     -peek <name>      select this file in the browser's preview pane (wide screens)
 ///     -ziptest          compress and extract sample files and write Documents/ziptest.txt
+///     -sidebar          show the sidebar once the files have loaded (the sidebar page when narrow)
 ///     -layoutreport     write window, safe-area and bar geometry to Documents/layout.txt
 enum DebugLaunch {
     private static let arguments = ProcessInfo.processInfo.arguments
     private static var consumed = false
 
     static var isActive: Bool { arguments.contains("-open") || arguments.contains("-folder") || arguments.contains("-ziptest") }
+
+    static var showsSidebar: Bool { arguments.contains("-sidebar") }
 
     private static func values(_ flag: String) -> [String] {
         arguments.indices.compactMap { index in
