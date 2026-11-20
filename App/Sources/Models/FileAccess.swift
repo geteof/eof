@@ -76,8 +76,14 @@ enum FileAccess {
         }
         if path.contains("com~apple~CloudDocs") {
             let rest = path.components(separatedBy: "com~apple~CloudDocs").last ?? ""
-            return String(localized: "iCloud Drive") + rest
+            return rest.isEmpty ? String(localized: "iCloud Drive") : (rest as NSString).lastPathComponent
         }
+        // Another app's storage (a file provider) or a copy another app handed over: the folder
+        // names on the way are internal, so say where it came from instead.
+        if path.hasSuffix("/File Provider Storage") || path.hasSuffix("/Inbox") || parent.lastPathComponent.count == 36 {
+            return String(localized: "Other App")
+        }
+        if path.contains("/File Provider Storage/") { return parent.lastPathComponent }
         return parent.lastPathComponent
     }
 }

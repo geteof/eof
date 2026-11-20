@@ -4,6 +4,17 @@ import EOFCore
 
 struct RecentItem: Codable, Identifiable, Equatable {
     var id: String { path }
+
+    /// What makes two entries the same file to the user: its name and where it lives. Paths
+    /// are not enough: a file reopened from another app or provider can come back under a new one.
+    var key: String { name.lowercased() + "\u{1F}" + place }
+
+    static func key(for url: URL) -> String {
+        url.lastPathComponent.lowercased() + "\u{1F}" + FileAccess.displayLocation(url)
+    }
+
+    /// A short place name, worked out again from the path so older entries get the new labels.
+    var place: String { FileAccess.displayLocation(URL(fileURLWithPath: path)) }
     var name: String
     var path: String
     var location: String
@@ -291,7 +302,7 @@ final class AppModel: ObservableObject {
     private func remember(_ url: URL, isFolder: Bool) {
         guard let bookmark = FileAccess.bookmark(for: url) else { return }
         let item = RecentItem(name: url.lastPathComponent, path: url.standardizedFileURL.path, location: FileAccess.displayLocation(url), bookmark: bookmark, isFolder: isFolder)
-        recents.removeAll { $0.path == item.path }
+        recents.removeAll { $0.path == item.path || $0.key == item.key }
         recents.insert(item, at: 0)
         if recents.count > 30 { recents.removeLast(recents.count - 30) }
         persistRecents()
