@@ -528,6 +528,8 @@ struct EditorHost: UIViewRepresentable {
             // A container the view has moved out of (pane swap, another window) must not resize it.
             guard let controller, controller.view.superview === self else { return }
             controller.layout(in: bounds)
+            // The keys follow the editor's width, which changes when a sidebar or pane opens.
+            if controller.textView.inputAccessoryView != nil { controller.textView.inputAccessoryView?.setNeedsLayout() }
         }
     }
 

@@ -4,21 +4,62 @@ import UIKit
 /// The row of keys above the software keyboard: characters that are slow to reach on iOS,
 /// plus caret movement, Tab and undo.
 final class KeyboardAccessory {
-    let view: UIInputView
+    let view: AccessoryContainer
     private let host: UIHostingController<AccessoryBar>
 
     init(controller: EditorController) {
-        view = UIInputView(frame: CGRect(x: 0, y: 0, width: 320, height: 46), inputViewStyle: .keyboard)
+        view = AccessoryContainer(frame: CGRect(x: 0, y: 0, width: 320, height: 46))
+        view.anchor = controller.textView
         host = UIHostingController(rootView: AccessoryBar(controller: controller))
         host.view.backgroundColor = .clear
-        host.view.frame = view.bounds
-        host.view.autoresizingMask = [.flexibleWidth, .flexibleHeight]
         host.safeAreaRegions = []
-        view.addSubview(host.view)
+        view.content.addSubview(host.view)
+        host.view.frame = view.content.bounds
+        host.view.autoresizingMask = [.flexibleWidth, .flexibleHeight]
     }
 
     func update(dark: Bool) {
         view.overrideUserInterfaceStyle = dark ? .dark : .light
+    }
+}
+
+/// The system stretches an accessory view across the whole window. This one draws its keys
+/// only above the editor it belongs to and lets touches beside them through, so a sidebar or
+/// a second pane next to the editor stays visible and usable while typing.
+final class AccessoryContainer: UIView {
+    weak var anchor: UIView?
+    let content = UIInputView(frame: CGRect(x: 0, y: 0, width: 320, height: 46), inputViewStyle: .keyboard)
+
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        backgroundColor = .clear
+        autoresizingMask = [.flexibleWidth]
+        addSubview(content)
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) is not used")
+    }
+
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        content.frame = keysFrame()
+    }
+
+    /// The part of the bar above the editor; the whole bar when the editor fills the width or
+    /// its position is unknown.
+    private func keysFrame() -> CGRect {
+        guard let anchor, let space = anchor.window?.windowScene?.coordinateSpace, window != nil else { return bounds }
+        let editor = convert(anchor.convert(anchor.bounds, to: space), from: space)
+        let minX = max(bounds.minX, editor.minX)
+        let maxX = min(bounds.maxX, editor.maxX)
+        // Too narrow to be worth it, or nearly full width anyway.
+        guard maxX - minX >= 280, maxX - minX < bounds.width - 8 else { return bounds }
+        return CGRect(x: minX, y: bounds.minY, width: maxX - minX, height: bounds.height)
+    }
+
+    override func point(inside point: CGPoint, with event: UIEvent?) -> Bool {
+        content.frame.contains(point)
     }
 }
 
