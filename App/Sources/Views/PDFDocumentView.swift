@@ -43,6 +43,10 @@ struct PDFDocumentView: UIViewRepresentable {
 
         func watch(_ view: PDFView) {
             guard let scrollView = Self.scrollView(in: view) else { return }
+            // The screen decides the edges: with the bars shown the view already sits inside the
+            // safe area, and with them hidden the pages should reach the top of the screen. Left
+            // to adjust itself, the scroll view kept a strip the height of the status bar empty.
+            scrollView.contentInsetAdjustmentBehavior = .never
             observation = scrollView.observe(\.contentOffset, options: [.new]) { [weak self] scrollView, _ in
                 let top = -scrollView.adjustedContentInset.top
                 let userDriven = scrollView.isTracking || scrollView.isDragging || scrollView.isDecelerating
