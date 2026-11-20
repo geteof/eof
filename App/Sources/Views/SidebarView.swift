@@ -37,6 +37,7 @@ struct SidebarView: View {
                         OpenDocumentRow(document: document)
                             .tag(document.id)
                     }
+                    .onMove { model.documents.move(fromOffsets: $0, toOffset: $1) }
                 }
             }
 

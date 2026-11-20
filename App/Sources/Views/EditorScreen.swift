@@ -687,6 +687,8 @@ struct NoticeBar: View {
 struct TabStrip: View {
     @EnvironmentObject private var model: AppModel
     @EnvironmentObject private var window: WindowState
+    /// The tab being dragged along the strip.
+    @State private var dragging: EditorDocument.ID?
 
     var body: some View {
         ScrollViewReader { reader in
@@ -695,6 +697,13 @@ struct TabStrip: View {
                     ForEach(model.documents) { document in
                         TabItem(document: document, isActive: document.id == window.primaryID, isInSplit: document.id == window.secondaryID)
                             .id(document.id)
+                            // Drag along the strip to reorder, to another app to hand over the
+                            // file, or to the side of the screen for a window of its own.
+                            .onDrag {
+                                dragging = document.id
+                                return FileDrag.provider(url: document.url, document: document.id, name: document.name)
+                            }
+                            .onDrop(of: [FileDrag.tabType], delegate: TabReorder(target: document.id, dragging: $dragging, model: model))
                     }
                 }
                 .padding(.horizontal, 10)
@@ -708,6 +717,27 @@ struct TabStrip: View {
                 if let id = window.primaryID { reader.scrollTo(id, anchor: .center) }
             }
         }
+    }
+}
+
+/// Moves the dragged tab into a tab's place as soon as it passes over it, as Safari's tabs do.
+private struct TabReorder: DropDelegate {
+    let target: EditorDocument.ID
+    @Binding var dragging: EditorDocument.ID?
+    let model: AppModel
+
+    func dropEntered(info: DropInfo) {
+        guard let dragging, dragging != target else { return }
+        withAnimation(.snappy(duration: 0.2)) { model.moveDocument(dragging, to: target) }
+    }
+
+    func dropUpdated(info: DropInfo) -> DropProposal? {
+        DropProposal(operation: .move)
+    }
+
+    func performDrop(info: DropInfo) -> Bool {
+        dragging = nil
+        return true
     }
 }
 

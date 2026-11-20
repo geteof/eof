@@ -100,6 +100,13 @@ final class AppModel: ObservableObject {
     /// Files load one at a time, so several opened together appear in the order they were asked for.
     private let loadQueue = DispatchQueue(label: "moe.luoling.eof.load", qos: .userInitiated)
 
+    /// Puts a document where another one is, for dragging tabs into order.
+    func moveDocument(_ id: EditorDocument.ID, to target: EditorDocument.ID) {
+        guard let from = documents.firstIndex(where: { $0.id == id }),
+              let to = documents.firstIndex(where: { $0.id == target }), from != to else { return }
+        documents.move(fromOffsets: IndexSet(integer: from), toOffset: to > from ? to + 1 : to)
+    }
+
     func document(_ id: EditorDocument.ID?) -> EditorDocument? {
         guard let id else { return nil }
         return documents.first { $0.id == id }

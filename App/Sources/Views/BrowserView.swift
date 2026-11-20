@@ -429,6 +429,7 @@ private struct FolderPage: View {
         }
         .buttonStyle(.plain)
         .listRowBackground(isFresh(entry) ? Color.green.opacity(0.18) : (!isSelecting && wide && selection?.url.standardizedFileURL.path == entry.url.standardizedFileURL.path ? Color.accentColor.opacity(0.16) : nil))
+        .onDrag { FileDrag.provider(url: entry.url, name: entry.name, opensWindow: !entry.isDirectory) }
         .contextMenu {
             actions(for: entry)
         } preview: {
@@ -472,6 +473,7 @@ private struct FolderPage: View {
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .onDrag { FileDrag.provider(url: entry.url, name: entry.name, opensWindow: !entry.isDirectory) }
         .contextMenu {
             actions(for: entry)
         } preview: {

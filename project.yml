@@ -160,6 +160,12 @@ targets:
           UIColorName: LaunchBackground
         UIApplicationSceneManifest:
           UIApplicationSupportsMultipleScenes: true
+        NSUserActivityTypes:
+          - moe.luoling.eof.open
+        UTExportedTypeDeclarations:
+          - UTTypeIdentifier: moe.luoling.eof.tab
+            UTTypeDescription: EOF Tab
+            UTTypeConformsTo: [public.data]
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait
           - UIInterfaceOrientationLandscapeLeft

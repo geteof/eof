@@ -98,6 +98,16 @@ struct RootView: View {
             default: break
             }
         }
+        // A file or tab dropped at the side of the screen opens a new window with it.
+        .onContinueUserActivity(FileDrag.activityType) { activity in
+            model.focusedWindow = window
+            let info = activity.userInfo ?? [:]
+            if let id = (info["document"] as? String).flatMap(UUID.init(uuidString:)), let document = model.document(id) {
+                model.activate(document, in: window, pane: .primary)
+            } else if let path = info["path"] as? String {
+                model.open(URL(fileURLWithPath: path), in: window, pane: .primary)
+            }
+        }
         .onOpenURL { url in
             model.focusedWindow = window
             model.openAny(url)
