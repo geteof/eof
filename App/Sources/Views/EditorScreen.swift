@@ -102,8 +102,9 @@ struct EditorScreen: View {
         .toolbar(pane == .primary && bars.hidden ? .hidden : .automatic, for: .navigationBar)
         // The clock and signal go with the bars. The window's root applies it: set inside the
         // split view, the status bar preference never reaches the system.
-        .onChange(of: bars.hidden) { _, hidden in if pane == .primary { window.barsHidden = hidden } }
-        .onDisappear { if pane == .primary { window.barsHidden = false } }
+        .onChange(of: bars.hidden) { _, hidden in if pane == .primary { window.setBarsHidden(hidden, by: document.id) } }
+        .onAppear { if pane == .primary { window.setBarsHidden(bars.hidden, by: document.id) } }
+        .onDisappear { window.releaseBars(by: document.id) }
         .onChange(of: showFind) { _, shown in if shown { bars.reveal() } }
         .onChange(of: settings.hideBarsOnScroll) { _, on in if !on { bars.reveal() } }
         .sheet(item: $sheet) { sheet in

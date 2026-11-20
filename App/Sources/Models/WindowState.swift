@@ -16,7 +16,28 @@ final class WindowState: ObservableObject, Identifiable {
     @Published var compactColumn: NavigationSplitViewColumn = .sidebar
     @Published var showBrowser = false
     /// The first pane hid its bars while scrolling; the status bar goes with them.
-    @Published var barsHidden = false
+    @Published private(set) var barsHidden = false
+    /// The document whose screen last reported, so a screen that is going away cannot undo
+    /// what the screen replacing it set: SwiftUI may run the old one's onDisappear after the
+    /// new one has appeared.
+    private var barsOwner: UUID?
+
+    func setBarsHidden(_ hidden: Bool, by document: UUID) {
+        barsOwner = document
+        if barsHidden != hidden { barsHidden = hidden }
+        #if DEBUG
+        BarVisibility.log.append("window bars \(hidden ? "hidden" : "shown") by \(document.uuidString.prefix(4))")
+        #endif
+    }
+
+    func releaseBars(by document: UUID) {
+        guard barsOwner == document else { return }
+        barsOwner = nil
+        if barsHidden { barsHidden = false }
+        #if DEBUG
+        BarVisibility.log.append("window bars released by \(document.uuidString.prefix(4))")
+        #endif
+    }
     /// Share of the editor area given to the first pane when split.
     @Published var splitFraction: CGFloat = 0.5
     /// Menu and keyboard commands for this window only.

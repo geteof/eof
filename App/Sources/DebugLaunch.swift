@@ -267,8 +267,11 @@ extension DebugLaunch {
         let editor = document.controller.view
         func rect(_ r: CGRect) -> String { "(\(Int(r.minX)),\(Int(r.minY)) \(Int(r.width))x\(Int(r.height)))" }
         func insets(_ i: UIEdgeInsets) -> String { "top=\(Int(i.top)) left=\(Int(i.left)) bottom=\(Int(i.bottom)) right=\(Int(i.right))" }
-        if let window = editor.window {
+        // A binary document (PDF, image) has no editor view on screen; use the app's key window.
+        let keyWindow = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.flatMap(\.windows).first { $0.isKeyWindow }
+        if let window = editor.window ?? keyWindow {
             let screen = window.screen
+            lines.append("statusBar hidden=\(window.windowScene?.statusBarManager?.isStatusBarHidden ?? false) rootPrefersHidden=\(window.rootViewController?.prefersStatusBarHidden ?? false)")
             lines.append("screen bounds=\(rect(screen.bounds)) nativeBounds=\(rect(screen.nativeBounds)) scale=\(screen.scale)")
             lines.append("window bounds=\(rect(window.bounds)) frame=\(rect(window.frame)) safeArea \(insets(window.safeAreaInsets))")
             if let scene = window.windowScene {
