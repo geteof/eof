@@ -8,7 +8,8 @@ struct SidebarView: View {
     let startImport: (ImportKind) -> Void
     @Binding var showSettings: Bool
     @State private var showFolderSearch = false
-    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    /// The window is one column wide, so the sidebar is a page of its own.
+    let isNarrow: Bool
 
     /// Recent items not already open or being browsed, one per file.
     private var recents: [RecentItem] {
@@ -21,7 +22,7 @@ struct SidebarView: View {
     /// window the sidebar is a page of its own, so nothing stays selected and every tap opens.
     private var selection: Binding<EditorDocument.ID?> {
         Binding(
-            get: { horizontalSizeClass == .compact ? nil : window.documentID(in: window.focusedPane) ?? window.primaryID },
+            get: { isNarrow ? nil : window.documentID(in: window.focusedPane) ?? window.primaryID },
             set: { id in
                 if let document = model.document(id) { model.activate(document, in: window) }
             }
@@ -111,7 +112,7 @@ struct SidebarView: View {
                     Text("Create or open a file with the + button.")
                 } actions: {
                     // In a narrow window the sidebar is all there is, so offer the actions here too.
-                    if horizontalSizeClass == .compact {
+                    if isNarrow {
                         Button("New File") { model.newDocument(in: window) }
                             .buttonStyle(.borderedProminent)
                         Button("Open File…") { startImport(.files) }

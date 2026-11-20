@@ -13,6 +13,9 @@ struct RootView: View {
     @EnvironmentObject private var model: AppModel
     @EnvironmentObject private var settings: AppSettings
     @Environment(\.scenePhase) private var scenePhase
+    /// The window's own width class. Inside the split view the sidebar column always reports
+    /// compact, even on an iPad where the sidebar sits beside the editor.
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @StateObject private var window = WindowState()
     @State private var columnVisibility: NavigationSplitViewVisibility = .automatic
     @State private var isImporting = false
@@ -25,7 +28,7 @@ struct RootView: View {
 
     var body: some View {
         NavigationSplitView(columnVisibility: $columnVisibility, preferredCompactColumn: $window.compactColumn) {
-            SidebarView(startImport: startImport, showSettings: $showSettings)
+            SidebarView(startImport: startImport, showSettings: $showSettings, isNarrow: horizontalSizeClass == .compact)
                 .navigationSplitViewColumnWidth(min: 260, ideal: 330, max: 440)
         } detail: {
             EditorArea(startImport: startImport)
