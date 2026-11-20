@@ -100,6 +100,8 @@ struct EditorScreen: View {
         .ignoresSafeArea(.container, edges: bars.hidden && !window.isSplit ? [.top, .bottom] : [])
         .modifier(PaneChrome(isPrimary: pane == .primary, title: document.name, titleMenu: titleMenu, toolbar: toolbarButtons))
         .toolbar(pane == .primary && bars.hidden ? .hidden : .automatic, for: .navigationBar)
+        // The clock and signal go with the bars, so scrolled text gets the whole screen.
+        .statusBarHidden(pane == .primary && bars.hidden)
         .onChange(of: showFind) { _, shown in if shown { bars.reveal() } }
         .onChange(of: settings.hideBarsOnScroll) { _, on in if !on { bars.reveal() } }
         .sheet(item: $sheet) { sheet in
