@@ -83,6 +83,7 @@ struct SettingsView: View {
                 }
                 Section {
                     LabeledContent("Version", value: version)
+                    NavigationLink("Acknowledgements") { AcknowledgementsView() }
                 } footer: {
                     Text("EOF keeps your files on your device. It has no account and collects no data.")
                 }

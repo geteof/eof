@@ -8,6 +8,9 @@ struct SidebarView: View {
     let startImport: (ImportKind) -> Void
     @Binding var showSettings: Bool
     @State private var showFolderSearch = false
+    @State private var showAllRecents = false
+    /// Recent files shown before "Show All": enough to find today's work without a scroll.
+    private static let recentLimit = 8
     /// The window is one column wide, so the sidebar is a page of its own.
     let isNarrow: Bool
 
@@ -78,7 +81,7 @@ struct SidebarView: View {
             let recents = recents
             if !recents.isEmpty {
                 Section("Recent") {
-                    ForEach(recents.prefix(12)) { item in
+                    ForEach(showAllRecents ? recents : Array(recents.prefix(SidebarView.recentLimit))) { item in
                         Button {
                             model.openRecent(item, in: window)
                         } label: {
@@ -106,6 +109,15 @@ struct SidebarView: View {
                             } label: {
                                 Label("Remove", systemImage: "trash")
                             }
+                        }
+                    }
+                    if recents.count > SidebarView.recentLimit {
+                        Button {
+                            withAnimation(.snappy(duration: 0.2)) { showAllRecents.toggle() }
+                        } label: {
+                            Label(showAllRecents ? String(localized: "Show Fewer") : String(localized: "Show All \(recents.count)"),
+                                  systemImage: showAllRecents ? "chevron.up" : "chevron.down")
+                                .foregroundStyle(.tint)
                         }
                     }
                 }
