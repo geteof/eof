@@ -24,9 +24,6 @@ packages:
   TreeSitterLanguages:
     url: https://github.com/simonbs/TreeSitterLanguages
     revision: 4442182303a00bf2764b10ead923a1066a0946f6
-  ZIPFoundation:
-    url: https://github.com/weichsel/ZIPFoundation
-    exactVersion: 0.9.20
   # Grammars that TreeSitterLanguages does not carry. Each is a plain C target; their highlight
   # queries are copied into App/Resources/Queries so the app does not depend on bundle names.
   TreeSitterKotlin:
@@ -51,7 +48,6 @@ targets:
     dependencies:
       - package: EOFCore
       - package: Runestone
-      - package: ZIPFoundation
       - package: TreeSitterKotlin
       - package: TreeSitterDockerfile
       - package: TreeSitterIni

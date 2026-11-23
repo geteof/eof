@@ -199,31 +199,12 @@ private struct FolderPage: View {
     @AppStorage("browserSort") private var sort = BrowserSort.name
     @AppStorage("browserGrid") private var showsGrid = false
     @State private var query = ""
-    @State private var prompt: NamePrompt?
-    @State private var promptTarget: FileEntry?
+    @State private var isNamingFile = false
     @State private var name = ""
     @State private var info: FileEntry?
     @State private var showFolderSearch = false
     /// Shown here, not through the app-wide alert, which sits underneath the full-screen browser.
     @State private var failure: AppAlert?
-
-    // Selecting several items
-    @State private var isSelecting = false
-    @State private var picked: Set<URL> = []
-    // Items waiting for a confirmation or for the system's move sheet
-    @State private var deleting: [FileEntry] = []
-    @State private var moving: [URL] = []
-    @State private var isMoving = false
-    /// Compressing or extracting, with its progress and result.
-    @StateObject private var job = ArchiveJob()
-    /// An item just created here: scrolled to and highlighted for a moment.
-    @State private var fresh: String?
-    @State private var toast: String?
-
-    private enum NamePrompt: Identifiable {
-        case newFile, newFolder, rename
-        var id: Int { hashValue }
-    }
 
     init(url: URL, root: URL, open: @escaping (URL) -> Void, popTo: @escaping (URL) -> Void, push: @escaping (URL) -> Void) {
         self.url = url
@@ -238,10 +219,6 @@ private struct FolderPage: View {
         let sorted = sort.sorted(listing.entries)
         guard !query.isEmpty else { return sorted }
         return sorted.filter { $0.name.localizedCaseInsensitiveContains(query) }
-    }
-
-    private var pickedEntries: [FileEntry] {
-        listing.entries.filter { picked.contains($0.url) }
     }
 
     /// The folders from the root down to this one, for jumping back up.
@@ -259,35 +236,28 @@ private struct FolderPage: View {
     var body: some View {
         Group {
             if showsGrid {
-                ScrollViewReader { proxy in
-                    ScrollView {
-                        LazyVGrid(columns: [GridItem(.adaptive(minimum: 104, maximum: 150), spacing: 10)], spacing: 14) {
-                            ForEach(shown) { entry in
-                                cell(entry)
-                            }
+                ScrollView {
+                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 104, maximum: 150), spacing: 10)], spacing: 14) {
+                        ForEach(shown) { entry in
+                            cell(entry)
                         }
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 10)
                     }
-                    .onChange(of: listing.entries) { _, _ in revealFresh(proxy) }
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 10)
                 }
             } else {
-                ScrollViewReader { proxy in
-                    List {
-                        if let error = listing.error {
-                            Text(verbatim: error)
-                                .foregroundStyle(.secondary)
-                        }
-                        ForEach(shown) { entry in
-                            row(entry)
-                        }
+                List {
+                    if let error = listing.error {
+                        Text(verbatim: error)
+                            .foregroundStyle(.secondary)
                     }
-                    .listStyle(.plain)
-                    .onChange(of: listing.entries) { _, _ in revealFresh(proxy) }
+                    ForEach(shown) { entry in
+                        row(entry)
+                    }
                 }
+                .listStyle(.plain)
             }
         }
-        .disabled(job.isRunning)
         .overlay {
             if listing.isLoading {
                 ProgressView()
@@ -299,67 +269,21 @@ private struct FolderPage: View {
                 }
             }
         }
-        .overlay { ArchiveJobCard(job: job) }
-        .overlay(alignment: .bottom) {
-            if let toast {
-                Toast(text: toast, systemImage: "checkmark.circle.fill")
-            }
-        }
-        .animation(.snappy, value: toast)
-        .task(id: toast) {
-            guard toast != nil else { return }
-            try? await Task.sleep(for: .seconds(3))
-            toast = nil
-            fresh = nil
-        }
-        .onReceive(job.$outcome) { outcome in
-            switch outcome {
-            case .created(let created):
-                announce(created)
-            case .failed(let error):
-                fail(error)
-            case nil:
-                break
-            }
-        }
-        .onReceive(NotificationCenter.default.publisher(for: .eofFolderChanged)) { note in
-            guard let folder = note.object as? URL, folder.standardizedFileURL.path == url.standardizedFileURL.path else { return }
-            if let created = note.userInfo?["created"] as? URL { fresh = created.lastPathComponent }
-            reload()
-        }
         .searchable(text: $query, placement: .navigationBarDrawer(displayMode: .automatic), prompt: Text("Filter by Name"))
         .textInputAutocapitalization(.never)
         .autocorrectionDisabled()
         .navigationTitle(url.lastPathComponent)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar { toolbar }
-        .toolbar(isSelecting ? .visible : .hidden, for: .bottomBar)
         .refreshable { reload() }
         .onAppear { reload() }
         .onChange(of: settings.showHiddenFiles) { _, _ in reload() }
-        .alert(promptTitle, isPresented: Binding(get: { prompt != nil }, set: { if !$0 { prompt = nil } }), presenting: prompt) { kind in
+        .alert("New File", isPresented: $isNamingFile) {
             TextField("Name", text: $name)
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
             Button("Cancel", role: .cancel) {}
-            Button(kind == .rename ? "Rename" : "Create") { perform(kind) }
-        }
-        .confirmationDialog(
-            deleting.count == 1 ? "Delete?" : "Delete \(deleting.count) Items?",
-            isPresented: Binding(get: { !deleting.isEmpty }, set: { if !$0 { deleting = [] } }),
-            titleVisibility: .visible
-        ) {
-            Button("Delete", role: .destructive) { delete(deleting) }
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            if deleting.count == 1, let entry = deleting.first {
-                Text("“\(entry.name)” will be deleted. This cannot be undone.")
-            } else {
-                Text("This cannot be undone.")
-            }
-        }
-        .fileMover(isPresented: $isMoving, files: moving) { result in
-            finishMove(result)
+            Button("Create") { createFile() }
         }
         .sheet(item: $info) { entry in
             FileInfoSheet(entry: entry, root: root)
@@ -375,19 +299,11 @@ private struct FolderPage: View {
     // MARK: Rows and cells
 
     private func tap(_ entry: FileEntry) {
-        if isSelecting {
-            if picked.contains(entry.url) { picked.remove(entry.url) } else { picked.insert(entry.url) }
-        } else if entry.isDirectory {
+        if entry.isDirectory {
             push(entry.url)
         } else {
             open(entry.url)
         }
-    }
-
-    private func mark(_ entry: FileEntry) -> some View {
-        Image(systemName: picked.contains(entry.url) ? "checkmark.circle.fill" : "circle")
-            .font(.title3)
-            .foregroundStyle(picked.contains(entry.url) ? AnyShapeStyle(.tint) : AnyShapeStyle(.tertiary))
     }
 
     private func row(_ entry: FileEntry) -> some View {
@@ -395,9 +311,8 @@ private struct FolderPage: View {
             tap(entry)
         } label: {
             HStack(spacing: 10) {
-                if isSelecting { mark(entry) }
                 EntryLabel(entry: entry, isOpen: isOpen(entry))
-                if entry.isDirectory, !isSelecting {
+                if entry.isDirectory {
                     Image(systemName: "chevron.right")
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(.tertiary)
@@ -406,25 +321,11 @@ private struct FolderPage: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .listRowBackground(isFresh(entry) ? Color.green.opacity(0.18) : nil)
         .onDrag { FileDrag.provider(url: entry.url, name: entry.name, opensWindow: !entry.isDirectory) }
         .contextMenu {
             actions(for: entry)
         } preview: {
             FilePeekCard(entry: entry)
-        }
-        .swipeActions(edge: .trailing) {
-            Button(role: .destructive) {
-                deleting = [entry]
-            } label: {
-                Label("Delete", systemImage: "trash")
-            }
-            Button {
-                beginRename(entry)
-            } label: {
-                Label("Rename", systemImage: "pencil")
-            }
-            .tint(.orange)
         }
         .swipeActions(edge: .leading) {
             Button {
@@ -440,14 +341,7 @@ private struct FolderPage: View {
         Button {
             tap(entry)
         } label: {
-            GridCell(entry: entry, isOpen: isOpen(entry), isHighlighted: isFresh(entry))
-                .overlay(alignment: .topTrailing) {
-                    if isSelecting {
-                        mark(entry)
-                            .background(Color(uiColor: .systemBackground), in: Circle())
-                            .padding(6)
-                    }
-                }
+            GridCell(entry: entry, isOpen: isOpen(entry))
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -459,15 +353,9 @@ private struct FolderPage: View {
         }
     }
 
+    /// Opening and looking only. Renaming, moving and deleting belong to the Files app.
     @ViewBuilder
     private func actions(for entry: FileEntry) -> some View {
-        if Archives.isArchive(entry.url) {
-            Button {
-                extract(entry)
-            } label: {
-                Label("Extract Here", systemImage: "arrow.up.bin")
-            }
-        }
         if !entry.isDirectory {
             Button {
                 open(entry.url)
@@ -494,168 +382,76 @@ private struct FolderPage: View {
             Label("Copy Name", systemImage: "doc.on.doc")
         }
         ShareLink(item: entry.url)
-        Divider()
-        Button {
-            beginRename(entry)
-        } label: {
-            Label("Rename…", systemImage: "pencil")
-        }
-        Button {
-            beginMove([entry.url])
-        } label: {
-            Label("Move…", systemImage: "folder")
-        }
-        if !entry.isDirectory {
-            Button {
-                duplicate([entry])
-            } label: {
-                Label("Duplicate", systemImage: "plus.square.on.square")
-            }
-        }
-        if !Archives.isArchive(entry.url) {
-            compressMenu([entry.url])
-        }
-        Button {
-            isSelecting = true
-            picked = [entry.url]
-        } label: {
-            Label("Select", systemImage: "checkmark.circle")
-        }
-        Button(role: .destructive) {
-            deleting = [entry]
-        } label: {
-            Label("Delete", systemImage: "trash")
-        }
     }
 
     @ToolbarContentBuilder
     private var toolbar: some ToolbarContent {
         ToolbarItem(placement: .topBarLeading) {
-            if isSelecting {
-                Button(picked.count == shown.count && !shown.isEmpty ? "Deselect All" : "Select All") {
-                    picked = picked.count == shown.count ? [] : Set(shown.map(\.url))
-                }
-            } else if url == root {
+            if url == root {
                 Button("Done") { window.showBrowser = false }
             }
         }
         ToolbarItem(placement: .principal) {
-            if isSelecting {
-                Text("\(picked.count) Selected")
-                    .font(.headline)
-            } else {
-                // The title doubles as a menu of the folders above this one.
-                Menu {
-                    ForEach(ancestors, id: \.self) { folder in
-                        Button {
-                            popTo(folder)
-                        } label: {
-                            Label(folder.lastPathComponent, systemImage: "folder")
-                        }
+            // The title doubles as a menu of the folders above this one.
+            Menu {
+                ForEach(ancestors, id: \.self) { folder in
+                    Button {
+                        popTo(folder)
+                    } label: {
+                        Label(folder.lastPathComponent, systemImage: "folder")
                     }
-                } label: {
-                    HStack(spacing: 4) {
-                        Text(verbatim: url.lastPathComponent)
-                            .font(.headline)
-                            .lineLimit(1)
-                            .truncationMode(.middle)
-                        if !ancestors.isEmpty {
-                            Image(systemName: "chevron.down")
-                                .font(.caption2.weight(.bold))
-                        }
-                    }
-                    .foregroundStyle(.primary)
                 }
-                .disabled(ancestors.isEmpty)
+            } label: {
+                HStack(spacing: 4) {
+                    Text(verbatim: url.lastPathComponent)
+                        .font(.headline)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                    if !ancestors.isEmpty {
+                        Image(systemName: "chevron.down")
+                            .font(.caption2.weight(.bold))
+                    }
+                }
+                .foregroundStyle(.primary)
             }
+            .disabled(ancestors.isEmpty)
         }
         ToolbarItem(placement: .primaryAction) {
-            if isSelecting {
-                Button("Done") {
-                    isSelecting = false
-                    picked = []
-                }
-                .fontWeight(.semibold)
-            } else {
-                Menu {
-                    Section {
-                        Button {
-                            isSelecting = true
-                        } label: {
-                            Label("Select", systemImage: "checkmark.circle")
-                        }
-                        Button {
-                            name = ""
-                            prompt = .newFile
-                        } label: {
-                            Label("New File…", systemImage: "doc.badge.plus")
-                        }
-                        Button {
-                            name = ""
-                            prompt = .newFolder
-                        } label: {
-                            Label("New Folder…", systemImage: "folder.badge.plus")
-                        }
+            Menu {
+                Section {
+                    Button {
+                        name = ""
+                        isNamingFile = true
+                    } label: {
+                        Label("New File…", systemImage: "doc.badge.plus")
                     }
-                    Section {
-                        Picker("View", selection: $showsGrid) {
-                            Label("List", systemImage: "list.bullet").tag(false)
-                            Label("Grid", systemImage: "square.grid.2x2").tag(true)
-                        }
-                        Picker("Sort By", selection: $sort) {
-                            ForEach(BrowserSort.allCases) { Text($0.title).tag($0) }
-                        }
-                        Toggle(isOn: $settings.showHiddenFiles) {
-                            Label("Show Hidden Files", systemImage: "eye")
-                        }
+                }
+                Section {
+                    Picker("View", selection: $showsGrid) {
+                        Label("List", systemImage: "list.bullet").tag(false)
+                        Label("Grid", systemImage: "square.grid.2x2").tag(true)
                     }
-                    Section {
-                        Button {
-                            showFolderSearch = true
-                        } label: {
-                            Label("Find in Folder…", systemImage: "doc.text.magnifyingglass")
-                        }
-                        Button {
-                            info = FileEntry.load(url, isDirectory: true)
-                        } label: {
-                            Label("Folder Info", systemImage: "info.circle")
-                        }
+                    Picker("Sort By", selection: $sort) {
+                        ForEach(BrowserSort.allCases) { Text($0.title).tag($0) }
                     }
-                } label: {
-                    Label("More", systemImage: "ellipsis.circle")
+                    Toggle(isOn: $settings.showHiddenFiles) {
+                        Label("Show Hidden Files", systemImage: "eye")
+                    }
                 }
-            }
-        }
-        ToolbarItemGroup(placement: .bottomBar) {
-            if isSelecting {
-                Button {
-                    beginMove(Array(picked))
-                } label: {
-                    Label("Move", systemImage: "folder")
+                Section {
+                    Button {
+                        showFolderSearch = true
+                    } label: {
+                        Label("Find in Folder…", systemImage: "doc.text.magnifyingglass")
+                    }
+                    Button {
+                        info = FileEntry.load(url, isDirectory: true)
+                    } label: {
+                        Label("Folder Info", systemImage: "info.circle")
+                    }
                 }
-                .disabled(picked.isEmpty)
-                Spacer()
-                ShareLink(items: Array(picked)) {
-                    Label("Share", systemImage: "square.and.arrow.up")
-                }
-                .disabled(picked.isEmpty)
-                Spacer()
-                Button {
-                    duplicate(pickedEntries.filter { !$0.isDirectory })
-                } label: {
-                    Label("Duplicate", systemImage: "plus.square.on.square")
-                }
-                .disabled(pickedEntries.allSatisfy(\.isDirectory))
-                Spacer()
-                compressMenu(Array(picked))
-                    .disabled(picked.isEmpty)
-                Spacer()
-                Button(role: .destructive) {
-                    deleting = pickedEntries
-                } label: {
-                    Label("Delete", systemImage: "trash")
-                }
-                .disabled(picked.isEmpty)
+            } label: {
+                Label("More", systemImage: "ellipsis.circle")
             }
         }
     }
@@ -666,208 +462,23 @@ private struct FolderPage: View {
         listing.reload(showHidden: settings.showHiddenFiles)
     }
 
-    private func endSelection() {
-        isSelecting = false
-        picked = []
-    }
-
     private func isOpen(_ entry: FileEntry) -> Bool {
         model.documents.contains { $0.url?.standardizedFileURL == entry.url.standardizedFileURL }
     }
 
-    private var promptTitle: LocalizedStringKey {
-        switch prompt {
-        case .newFile: return "New File"
-        case .newFolder: return "New Folder"
-        case .rename: return "Rename"
-        case nil: return ""
-        }
-    }
-
-    private func beginRename(_ entry: FileEntry) {
-        promptTarget = entry
-        name = entry.name
-        prompt = .rename
-    }
-
-    private func fail(_ error: Error) {
-        failure = AppAlert(title: String(localized: "Could Not Complete"), message: error.localizedDescription)
-    }
-
-    /// Open documents at or below `url`.
-    private func documents(under url: URL) -> [EditorDocument] {
-        let prefix = url.standardizedFileURL.path
-        return model.documents.filter { document in
-            guard let path = document.url?.standardizedFileURL.path else { return false }
-            return path == prefix || path.hasPrefix(prefix + "/")
-        }
-    }
-
-    private func perform(_ kind: NamePrompt) {
+    /// Makes an empty file here and opens it in the editor.
+    private func createFile() {
         let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty, !trimmed.contains("/") else { return }
-        let manager = FileManager.default
+        let target = url.appendingPathComponent(trimmed)
         do {
-            switch kind {
-            case .newFile:
-                let target = url.appendingPathComponent(trimmed)
-                guard !manager.fileExists(atPath: target.path) else { throw FileAccess.Failure(message: String(localized: "An item with that name already exists.")) }
-                try Data().write(to: target)
-                reload()
-                open(target)
-            case .newFolder:
-                try manager.createDirectory(at: url.appendingPathComponent(trimmed), withIntermediateDirectories: false)
-                reload()
-            case .rename:
-                guard let entry = promptTarget else { return }
-                let target = entry.url.deletingLastPathComponent().appendingPathComponent(trimmed)
-                guard target != entry.url else { return }
-                guard !manager.fileExists(atPath: target.path) else { throw FileAccess.Failure(message: String(localized: "An item with that name already exists.")) }
-                try relocate(entry.url, to: target) { try manager.moveItem(at: entry.url, to: target) }
-                reload()
-            }
+            guard !FileManager.default.fileExists(atPath: target.path) else { throw FileAccess.Failure(message: String(localized: "An item with that name already exists.")) }
+            try Data().write(to: target)
+            reload()
+            open(target)
         } catch {
-            fail(error)
+            failure = AppAlert(title: String(localized: "Could Not Complete"), message: error.localizedDescription)
         }
-    }
-
-    /// Runs `move` and keeps open documents pointing at their files: one that was `old` itself, or
-    /// inside it when `old` is a folder.
-    private func relocate(_ old: URL, to new: URL, move: () throws -> Void) throws {
-        let affected = documents(under: old)
-        affected.forEach { $0.autosave() }
-        let oldPath = old.standardizedFileURL.path
-        let targets = affected.map { document -> URL in
-            let path = document.url!.standardizedFileURL.path
-            let rest = String(path.dropFirst(oldPath.count))
-            return rest.isEmpty ? new : new.appendingPathComponent(String(rest.dropFirst()))
-        }
-        try move()
-        for (document, target) in zip(affected, targets) { document.adopt(url: target) }
-        if !affected.isEmpty { model.saveSession() }
-    }
-
-    private func duplicate(_ entries: [FileEntry]) {
-        do {
-            for entry in entries {
-                let folder = entry.url.deletingLastPathComponent()
-                let base = entry.url.deletingPathExtension().lastPathComponent
-                let ext = entry.fileExtension
-                var index = 1
-                var target: URL
-                repeat {
-                    let suffix = index == 1 ? String(localized: " copy") : String(localized: " copy \(index)")
-                    target = folder.appendingPathComponent(base + suffix + (ext.isEmpty ? "" : "." + ext))
-                    index += 1
-                } while FileManager.default.fileExists(atPath: target.path) && index < 500
-                try FileManager.default.copyItem(at: entry.url, to: target)
-            }
-        } catch {
-            fail(error)
-        }
-        endSelection()
-        reload()
-    }
-
-    private func delete(_ entries: [FileEntry]) {
-        do {
-            for entry in entries {
-                // Close what is about to disappear, including files inside a deleted folder.
-                for document in documents(under: entry.url) {
-                    document.isDirty = false
-                    model.close(document)
-                }
-                try FileManager.default.removeItem(at: entry.url)
-            }
-        } catch {
-            fail(error)
-        }
-        deleting = []
-        endSelection()
-        reload()
-    }
-
-    /// "Compress" with the format as a submenu; ZIP first, since every system opens it.
-    private func compressMenu(_ urls: [URL]) -> some View {
-        Menu {
-            ForEach(ArchiveFormat.creatable) { format in
-                Button(format.displayName) { compress(urls, as: format) }
-            }
-        } label: {
-            Label("Compress", systemImage: "archivebox")
-        } primaryAction: {
-            compress(urls, as: .zip)
-        }
-    }
-
-    private func compress(_ urls: [URL], as format: ArchiveFormat) {
-        guard !urls.isEmpty else { return }
-        documents(underAny: urls).forEach { $0.autosave() }
-        endSelection()
-        let archiveName = String(localized: "Archive")
-        job.run(String(localized: "Compressing…"), determinate: Archives.reportsProgress(format)) { progress in
-            try Archives.compress(urls, format: format, archiveName: archiveName, progress: progress)
-        }
-    }
-
-    private func extract(_ entry: FileEntry) {
-        let url = entry.url
-        job.run(String(localized: "Extracting…"), determinate: Archives.format(url).map(Archives.reportsProgress) ?? false) { progress in
-            try Archives.extract(url, progress: progress)
-        }
-    }
-
-    /// Says what was made, then scrolls to it and highlights it once the list has reloaded.
-    private func announce(_ created: URL) {
-        let isDirectory = (try? created.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) ?? false
-        toast = isDirectory
-            ? String(localized: "Extracted to “\(created.lastPathComponent)”")
-            : String(localized: "Created “\(created.lastPathComponent)”")
-        fresh = created.lastPathComponent
-        job.clearOutcome()
-        reload()
-    }
-
-    private func isFresh(_ entry: FileEntry) -> Bool {
-        fresh != nil && entry.name == fresh
-    }
-
-    private func revealFresh(_ proxy: ScrollViewProxy) {
-        guard let fresh, let entry = shown.first(where: { $0.name == fresh }) else { return }
-        withAnimation { proxy.scrollTo(entry.id, anchor: .center) }
-    }
-
-    /// Hands the items to the system's move sheet, which can put them in any folder the user can reach.
-    private func beginMove(_ urls: [URL]) {
-        guard !urls.isEmpty else { return }
-        documents(underAny: urls).forEach { $0.autosave() }
-        moving = urls
-        isMoving = true
-    }
-
-    private func documents(underAny urls: [URL]) -> [EditorDocument] {
-        urls.flatMap { documents(under: $0) }
-    }
-
-    private func finishMove(_ result: Result<[URL], Error>) {
-        switch result {
-        case .success(let destinations):
-            // The sheet returns the new locations in the order the items were given.
-            for (old, new) in zip(moving, destinations) {
-                let oldPath = old.standardizedFileURL.path
-                for document in documents(under: old) {
-                    let rest = String(document.url!.standardizedFileURL.path.dropFirst(oldPath.count))
-                    document.adopt(url: rest.isEmpty ? new : new.appendingPathComponent(String(rest.dropFirst())))
-                }
-            }
-            model.saveSession()
-        case .failure(let error):
-            // Cancelling the sheet is not an error worth showing.
-            if (error as NSError).code != NSUserCancelledError { fail(error) }
-        }
-        moving = []
-        endSelection()
-        reload()
     }
 }
 
@@ -875,7 +486,6 @@ private struct FolderPage: View {
 private struct GridCell: View {
     let entry: FileEntry
     let isOpen: Bool
-    let isHighlighted: Bool
 
     var body: some View {
         VStack(spacing: 6) {
@@ -903,7 +513,6 @@ private struct GridCell: View {
         }
         .padding(6)
         .frame(maxWidth: .infinity, alignment: .top)
-        .background(isHighlighted ? Color.accentColor.opacity(0.16) : Color.clear, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
     }
 }
 

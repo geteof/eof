@@ -17,7 +17,6 @@ enum FileKind {
 
     /// Types that are never text. They are not read into memory just to find that out.
     static func isMedia(_ url: URL) -> Bool {
-        if Archives.isArchive(url) { return true }
         if documentExtensions.contains(url.pathExtension.lowercased()) { return true }
         guard let type = type(url) else { return false }
         if type.conforms(to: .svg) { return false } // SVG is XML: it opens in the editor, with a preview
