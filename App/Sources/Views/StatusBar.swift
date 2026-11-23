@@ -11,11 +11,40 @@ struct StatusBar: View {
     var viewMode: Binding<ViewMode>?
     /// The window is wide enough for source and preview side by side.
     var allowsSideBySide = false
+    /// Shows a fixed Find button at the start, outside the part that scrolls.
+    var onFind: (() -> Void)?
     let goToLine: () -> Void
     @EnvironmentObject private var model: AppModel
     @State private var encodingError: String?
 
     var body: some View {
+        HStack(spacing: 0) {
+            if let onFind {
+                Button(action: onFind) {
+                    Image(systemName: "magnifyingglass")
+                        .font(.footnote.weight(.semibold))
+                        .foregroundStyle(.tint)
+                        // Wider than it looks: the bar is short, so the target grows sideways.
+                        .frame(width: 46, height: 30)
+                        .contentShape(Rectangle())
+                }
+                .accessibilityLabel(Text("Find"))
+                Divider()
+                    .frame(height: 16)
+            }
+            items
+        }
+        .frame(height: 30)
+        .background(.bar)
+        .buttonStyle(.plain)
+        .alert("Encoding", isPresented: Binding(get: { encodingError != nil }, set: { if !$0 { encodingError = nil } })) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(verbatim: encodingError ?? "")
+        }
+    }
+
+    private var items: some View {
         GeometryReader { proxy in
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 16) {
@@ -68,14 +97,6 @@ struct StatusBar: View {
             .frame(minWidth: proxy.size.width, minHeight: 30)
         }
         .scrollBounceBehavior(.basedOnSize, axes: .horizontal)
-        }
-        .frame(height: 30)
-        .background(.bar)
-        .buttonStyle(.plain)
-        .alert("Encoding", isPresented: Binding(get: { encodingError != nil }, set: { if !$0 { encodingError = nil } })) {
-            Button("OK", role: .cancel) {}
-        } message: {
-            Text(verbatim: encodingError ?? "")
         }
     }
 

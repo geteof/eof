@@ -83,7 +83,8 @@ struct EditorScreen: View {
                 content(sideBySide: sideBySide)
                 if !bars.hidden {
                     Divider()
-                    StatusBar(document: document, status: document.status, sheet: $sheet, viewMode: canPreview ? modeBinding(sideBySide: sideBySide) : nil, allowsSideBySide: sideBySide) {
+                    StatusBar(document: document, status: document.status, sheet: $sheet, viewMode: canPreview ? modeBinding(sideBySide: sideBySide) : nil, allowsSideBySide: sideBySide,
+                              onFind: findInStatusBar ? { toggleFind(replace: false) } : nil) {
                         goToLineText = ""
                         showGoToLine = true
                     }
@@ -256,7 +257,7 @@ struct EditorScreen: View {
     /// the second. Source, preview and side by side are switched in the status bar.
     @ViewBuilder
     private var toolbarButtons: some View {
-            if !document.isBinary {
+            if !document.isBinary, !findInStatusBar {
                 Button {
                     toggleFind(replace: false)
                 } label: {
@@ -540,6 +541,12 @@ struct EditorScreen: View {
     }
 
     // MARK: - Actions
+
+    /// On a narrow screen the bar folds Find into its overflow menu, two taps away at the top.
+    /// There it sits at the start of the status bar instead, where a thumb reaches it.
+    private var findInStatusBar: Bool {
+        !document.isBinary && horizontalSizeClass == .compact
+    }
 
     private func toggleFind(replace: Bool) {
         if showFind, findWithReplace == replace {
