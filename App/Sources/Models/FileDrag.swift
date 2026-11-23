@@ -14,21 +14,17 @@ enum FileDrag {
     /// Everything the editor area looks at; `canOpen` decides what it takes.
     static let droppableTypes: [UTType] = [tabType, fileType, .fileURL, .item]
 
-    /// - Parameters:
-    ///   - opensWindow: Off for folders: a window shows files, and the project folder is shared by all windows.
-    static func provider(url: URL?, document: EditorDocument.ID? = nil, name: String, opensWindow: Bool = true) -> NSItemProvider {
+    static func provider(url: URL?, document: EditorDocument.ID? = nil, name: String) -> NSItemProvider {
         let provider = url.flatMap { NSItemProvider(contentsOf: $0) } ?? NSItemProvider()
         provider.suggestedName = name
-        if opensWindow {
-            let activity = NSUserActivity(activityType: activityType)
-            var info: [String: Any] = [:]
-            if let url { info["path"] = url.path }
-            if let document { info["document"] = document.uuidString }
-            activity.userInfo = info
-            activity.title = name
-            provider.registerObject(activity, visibility: .all)
-        }
-        if let url, opensWindow {
+        let activity = NSUserActivity(activityType: activityType)
+        var info: [String: Any] = [:]
+        if let url { info["path"] = url.path }
+        if let document { info["document"] = document.uuidString }
+        activity.userInfo = info
+        activity.title = name
+        provider.registerObject(activity, visibility: .all)
+        if let url {
             provider.registerDataRepresentation(forTypeIdentifier: fileType.identifier, visibility: .ownProcess) { completion in
                 completion(Data(url.path.utf8), nil)
                 return nil

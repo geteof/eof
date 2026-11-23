@@ -2,10 +2,6 @@ import SwiftUI
 import EOFCore
 import UniformTypeIdentifiers
 
-enum ImportKind {
-    case files, folder
-}
-
 struct RootView: View {
     /// The document a window was opened for ("Open in New Window"); nil for an empty window.
     let initialDocument: UUID?
@@ -19,7 +15,6 @@ struct RootView: View {
     @StateObject private var window = WindowState()
     @State private var columnVisibility: NavigationSplitViewVisibility = .automatic
     @State private var isImporting = false
-    @State private var importKind = ImportKind.files
     @State private var showSettings = false
     @State private var didStart = false
 
@@ -37,28 +32,16 @@ struct RootView: View {
         .navigationSplitViewStyle(.balanced)
         .environmentObject(window)
         .focusedSceneObject(window)
-        .fileImporter(isPresented: $isImporting, allowedContentTypes: importKind == .folder ? [.folder] : [.item], allowsMultipleSelection: importKind == .files) { result in
+        .fileImporter(isPresented: $isImporting, allowedContentTypes: [.item], allowsMultipleSelection: true) { result in
             switch result {
             case .success(let urls):
-                if importKind == .folder {
-                    if let url = urls.first { model.openFolder(url, in: window) }
-                } else {
-                    for (index, url) in urls.enumerated() { model.open(url, activate: index == urls.count - 1, in: window) }
-                }
+                for (index, url) in urls.enumerated() { model.open(url, activate: index == urls.count - 1, in: window) }
             case .failure(let error):
                 model.alert = AppAlert(title: String(localized: "Could Not Open"), message: error.localizedDescription)
             }
         }
         .sheet(isPresented: $showSettings) {
             SettingsView()
-        }
-        .fullScreenCover(isPresented: $window.showBrowser) {
-            if let folder = model.folder {
-                BrowserView(root: folder.url)
-                    .environmentObject(model)
-                    .environmentObject(settings)
-                    .environmentObject(window)
-            }
         }
         .alert(item: Binding(get: { isFocusedWindow ? model.alert : nil }, set: { model.alert = $0 })) { alert in
             Alert(title: Text(alert.title), message: Text(alert.message), dismissButton: .default(Text("OK")))
@@ -91,9 +74,7 @@ struct RootView: View {
         }
         .onReceive(window.commands) { command in
             switch command {
-            case .openFile: startImport(.files)
-            case .openFolder: startImport(.folder)
-            case .browseFiles: if model.folder != nil { window.showBrowser = true }
+            case .openFile: startImport()
             case .toggleSplit: toggleSplit()
             default: break
             }
@@ -155,15 +136,14 @@ struct RootView: View {
         }
     }
 
-    private func startImport(_ kind: ImportKind) {
-        importKind = kind
+    private func startImport() {
         isImporting = true
     }
 }
 
 /// The detail column: one editor, or two side by side (or stacked on a narrow screen).
 private struct EditorArea: View {
-    let startImport: (ImportKind) -> Void
+    let startImport: () -> Void
     @EnvironmentObject private var model: AppModel
     @EnvironmentObject private var window: WindowState
 
@@ -250,7 +230,7 @@ struct SplitLayout<First: View, Second: View>: View {
 struct WelcomeView: View {
     @EnvironmentObject private var model: AppModel
     @EnvironmentObject private var window: WindowState
-    let startImport: (ImportKind) -> Void
+    let startImport: () -> Void
 
     var body: some View {
         ContentUnavailableView {
@@ -265,14 +245,9 @@ struct WelcomeView: View {
             }
             .buttonStyle(.borderedProminent)
             Button {
-                startImport(.files)
+                startImport()
             } label: {
                 Label("Open File…", systemImage: "doc")
-            }
-            Button {
-                startImport(.folder)
-            } label: {
-                Label("Open Folder…", systemImage: "folder")
             }
         }
     }

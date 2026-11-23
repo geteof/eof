@@ -71,9 +71,8 @@ struct SettingsView: View {
                 }
                 Section {
                     Toggle("Allow JavaScript in HTML Preview", isOn: $settings.previewAllowsJavaScript)
-                    Toggle("Show Hidden Files", isOn: $settings.showHiddenFiles)
                 } header: {
-                    Text("Files and Preview")
+                    Text("Preview")
                 } footer: {
                     Text("Scripts never run in Markdown previews.")
                 }

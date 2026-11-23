@@ -14,7 +14,6 @@ final class WindowState: ObservableObject, Identifiable {
     @Published var secondaryID: EditorDocument.ID?
     @Published var focusedPane: EditorPane = .primary
     @Published var compactColumn: NavigationSplitViewColumn = .sidebar
-    @Published var showBrowser = false
     /// The first pane hid its bars while scrolling; the status bar goes with them.
     @Published private(set) var barsHidden = false
     /// The document whose screen last reported, so a screen that is going away cannot undo

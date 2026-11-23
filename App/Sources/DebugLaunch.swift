@@ -5,7 +5,6 @@ import EOFCore
 /// Launch arguments for checking screens in the simulator without tapping through the UI.
 ///
 ///     -open <path>      open a file (repeatable; paths are relative to the app's Documents folder)
-///     -folder <path>    open a folder as the project
 ///     -find <text>      show the find bar with this query (-replace also shows the replace row)
 ///     -preview          show the Markdown / HTML preview
 ///     -sidebyside       show the source and the preview side by side (wide windows)
@@ -14,14 +13,13 @@ import EOFCore
 ///     -readonly         open in read-only mode
 ///     -split <path>     open a file in the second pane
 ///     -selftest         drive the editor through its commands and write Documents/selftest.txt
-///     -browse [subfolder]  show the file browser on the folder, optionally inside a subfolder
 ///     -sidebar          show the sidebar once the files have loaded (the sidebar page when narrow)
 ///     -layoutreport     write window, safe-area and bar geometry to Documents/layout.txt
 enum DebugLaunch {
     private static let arguments = ProcessInfo.processInfo.arguments
     private static var consumed = false
 
-    static var isActive: Bool { arguments.contains("-open") || arguments.contains("-folder") }
+    static var isActive: Bool { arguments.contains("-open") }
 
     static var showsSidebar: Bool { arguments.contains("-sidebar") }
 
@@ -37,21 +35,9 @@ enum DebugLaunch {
     }
 
     static func open(in model: AppModel) {
-        if let folder = values("-folder").first { model.openFolder(resolve(folder), browse: arguments.contains("-browse")) }
         for path in values("-open") { model.open(resolve(path)) }
         // Loading is serial, so the split document arrives after the first pane has one.
         for path in values("-split") { model.open(resolve(path), pane: .secondary) }
-    }
-
-    static func applyBrowser(root: URL, path: inout [URL]) {
-        guard arguments.contains("-browse") else { return }
-        var folder = root
-        if let sub = values("-browse").first, !sub.hasPrefix("-") {
-            for component in sub.split(separator: "/") {
-                folder = folder.appendingPathComponent(String(component))
-                path.append(folder)
-            }
-        }
     }
 
     static func apply(to document: EditorDocument, showFind: inout Bool, findWithReplace: inout Bool, viewMode: inout ViewMode, sheet: inout EditorSheet?) {

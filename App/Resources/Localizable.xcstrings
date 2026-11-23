@@ -727,6 +727,16 @@
         }
       }
     },
+    "EOF opens files, not folders. Open a file from the folder instead.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "EOF 只打开文件，不打开文件夹。请从文件夹里选一个文件打开。"
+          }
+        }
+      }
+    },
     "Edited": {
       "localizations": {
         "zh-Hans": {

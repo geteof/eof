@@ -37,7 +37,6 @@ final class AppSettings: ObservableObject {
     @Published var defaultEncodingID: String { didSet { defaults.set(defaultEncodingID, forKey: "defaultEncoding") } }
     @Published var defaultLineEnding: LineEnding { didSet { defaults.set(defaultLineEnding.rawValue, forKey: "defaultLineEnding") } }
     @Published var previewAllowsJavaScript: Bool { didSet { defaults.set(previewAllowsJavaScript, forKey: "previewJS") } }
-    @Published var showHiddenFiles: Bool { didSet { defaults.set(showHiddenFiles, forKey: "hiddenFiles") } }
     /// Slide the navigation bar and tabs away while scrolling down, as Safari does.
     @Published var hideBarsOnScroll: Bool { didSet { defaults.set(hideBarsOnScroll, forKey: "hideBarsOnScroll") } }
     /// Markdown, HTML and SVG files open showing the preview rather than the source.
@@ -74,7 +73,6 @@ final class AppSettings: ObservableObject {
         defaultEncodingID = d.string(forKey: "defaultEncoding") ?? TextEncoding.utf8.id
         defaultLineEnding = LineEnding(rawValue: d.string(forKey: "defaultLineEnding") ?? "") ?? .lf
         previewAllowsJavaScript = bool("previewJS", false)
-        showHiddenFiles = bool("hiddenFiles", true)
         hideBarsOnScroll = bool("hideBarsOnScroll", true)
         openInPreview = bool("openInPreview", false)
     }

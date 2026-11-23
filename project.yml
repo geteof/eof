@@ -220,11 +220,6 @@ targets:
             LSItemContentTypes:
               - public.data
               - public.content
-          - CFBundleTypeName: Folder
-            CFBundleTypeRole: Editor
-            LSHandlerRank: Alternate
-            LSItemContentTypes:
-              - public.folder
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: moe.luoling.eof

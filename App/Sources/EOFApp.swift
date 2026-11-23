@@ -50,10 +50,6 @@ struct EditorCommands: Commands {
             }
             Button("Open…") { send(.openFile) }
                 .keyboardShortcut("o")
-            Button("Open Folder…") { send(.openFolder) }
-                .keyboardShortcut("o", modifiers: [.command, .shift])
-            Button("Browse Files") { send(.browseFiles) }
-                .keyboardShortcut("b", modifiers: [.command, .shift])
         }
         CommandGroup(replacing: .saveItem) {
             Button("Save") { send(.save) }
@@ -68,8 +64,6 @@ struct EditorCommands: Commands {
                 .keyboardShortcut("f")
             Button("Find and Replace…") { send(.replace) }
                 .keyboardShortcut("f", modifiers: [.command, .option])
-            Button("Find in Folder…") { send(.findInFolder) }
-                .keyboardShortcut("f", modifiers: [.command, .shift])
             Divider()
             Button("Go to Line…") { send(.goToLine) }
                 .keyboardShortcut("l")

@@ -26,44 +26,8 @@ struct RecentItem: Codable, Identifiable, Equatable {
     var path: String
     var location: String
     var bookmark: Data
+    /// Kept so lists saved by earlier versions, which also remembered folders, still decode.
     var isFolder: Bool
-}
-
-/// One entry of the folder tree. Children load when the node is first expanded.
-final class FileNode: ObservableObject, Identifiable {
-    let url: URL
-    let isDirectory: Bool
-    @Published var children: [FileNode]?
-    @Published var isExpanded = false {
-        didSet { if isExpanded, children == nil { reload() } }
-    }
-
-    var id: URL { url }
-    var name: String { FileAccess.displayName(url) }
-
-    init(url: URL, isDirectory: Bool) {
-        self.url = url
-        self.isDirectory = isDirectory
-    }
-
-    func reload() {
-        guard isDirectory else { return }
-        let showHidden = AppSettings.shared.showHiddenFiles
-        let keys: [URLResourceKey] = [.isDirectoryKey, .isPackageKey]
-        let contents = (try? FileManager.default.contentsOfDirectory(at: url, includingPropertiesForKeys: keys, options: showHidden ? [] : [.skipsHiddenFiles])) ?? []
-        let previous = Dictionary(uniqueKeysWithValues: (children ?? []).map { ($0.url, $0) })
-        children = contents
-            .filter { $0.lastPathComponent != ".DS_Store" }
-            .map { item -> FileNode in
-                if let existing = previous[item] { return existing }
-                let values = try? item.resourceValues(forKeys: Set(keys))
-                return FileNode(url: item, isDirectory: (values?.isDirectory ?? false) && !(values?.isPackage ?? false))
-            }
-            .sorted { a, b in
-                if a.isDirectory != b.isDirectory { return a.isDirectory }
-                return a.name.localizedStandardCompare(b.name) == .orderedAscending
-            }
-    }
 }
 
 struct AppAlert: Identifiable {
@@ -76,13 +40,12 @@ final class AppModel: ObservableObject {
     static let shared = AppModel()
 
     @Published var documents: [EditorDocument] = []
-    @Published var folder: FileNode?
     @Published var recents: [RecentItem] = []
     @Published var alert: AppAlert?
     @Published var loadingName: String?
     /// A document whose closing needs the user's confirmation because text would be lost.
     @Published var pendingClose: EditorDocument?
-    /// The window the user last worked in. Opening a file, a folder or a new document lands here.
+    /// The window the user last worked in. Opening a file or a new document lands here.
     weak var focusedWindow: WindowState?
     private var windowRefs: [WeakWindow] = []
 
@@ -94,7 +57,6 @@ final class AppModel: ObservableObject {
 
     private let settings = AppSettings.shared
     private let defaults = UserDefaults.standard
-    private var folderIsScoped = false
     private var untitledCounter = 0
     private var loadingPaths = Set<String>()
     /// Files load one at a time, so several opened together appear in the order they were asked for.
@@ -124,7 +86,8 @@ final class AppModel: ObservableObject {
 
     private init() {
         if let data = defaults.data(forKey: "recents"), let items = try? JSONDecoder().decode([RecentItem].self, from: data) {
-            recents = items
+            // Earlier versions also remembered folders, which EOF no longer opens.
+            recents = items.filter { !$0.isFolder }
         }
     }
 
@@ -220,7 +183,7 @@ final class AppModel: ObservableObject {
                     document.preparedState = prepared
                     self.documents.append(document)
                     if shouldActivate { self.activate(document, in: destination, pane: pane) }
-                    self.remember(url, isFolder: false)
+                    self.remember(url)
                     if let range { DispatchQueue.main.async { document.controller.select(range, focus: false) } }
                     self.saveSession()
                 case .failure(let error):
@@ -230,10 +193,14 @@ final class AppModel: ObservableObject {
         }
     }
 
-    /// Opens whatever the system hands over: a file, or a folder as the project.
+    /// Opens what the system hands over. EOF opens files only; a folder gets an explanation.
     func openAny(_ url: URL) {
         let isDirectory = FileAccess.withAccess(url) { (try? url.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) ?? false }
-        if isDirectory { openFolder(url) } else { open(url) }
+        if isDirectory {
+            alert = AppAlert(title: String(localized: "Could Not Open “\(url.lastPathComponent)”"), message: String(localized: "EOF opens files, not folders. Open a file from the folder instead."))
+        } else {
+            open(url)
+        }
     }
 
     func close(_ document: EditorDocument) {
@@ -286,36 +253,11 @@ final class AppModel: ObservableObject {
         for document in documents where isVisible(document.id) { document.checkForExternalChange() }
     }
 
-    // MARK: - Folder
-
-    /// Makes `url` the project folder. `browse` also brings up the file browser on it.
-    func openFolder(_ url: URL, browse: Bool = true, in window: WindowState? = nil) {
-        if let window { focusedWindow = window }
-        closeFolder()
-        folderIsScoped = url.startAccessingSecurityScopedResource()
-        folder = FileNode(url: url, isDirectory: true)
-        if browse { focusedWindow?.showBrowser = true }
-        remember(url, isFolder: true)
-        saveSession()
-    }
-
-    func closeFolder() {
-        guard let current = folder else { return }
-        // Keep access while documents inside the folder are still open.
-        let prefix = current.url.standardizedFileURL.path + "/"
-        let inUse = documents.contains { $0.url?.standardizedFileURL.path.hasPrefix(prefix) ?? false }
-        if folderIsScoped, !inUse { current.url.stopAccessingSecurityScopedResource() }
-        folderIsScoped = false
-        windows.forEach { $0.showBrowser = false }
-        folder = nil
-        saveSession()
-    }
-
     // MARK: - Recents
 
-    private func remember(_ url: URL, isFolder: Bool) {
+    private func remember(_ url: URL) {
         guard let bookmark = FileAccess.bookmark(for: url) else { return }
-        let item = RecentItem(name: url.lastPathComponent, path: url.standardizedFileURL.path, location: FileAccess.displayLocation(url), bookmark: bookmark, isFolder: isFolder)
+        let item = RecentItem(name: url.lastPathComponent, path: url.standardizedFileURL.path, location: FileAccess.displayLocation(url), bookmark: bookmark, isFolder: false)
         recents.removeAll { $0.path == item.path || $0.key == item.key }
         recents.insert(item, at: 0)
         if recents.count > 30 { recents.removeLast(recents.count - 30) }
@@ -330,7 +272,7 @@ final class AppModel: ObservableObject {
             alert = AppAlert(title: String(localized: "File Not Found"), message: String(localized: "“\(item.name)” was moved or deleted."))
             return
         }
-        if item.isFolder { openFolder(url, in: window) } else { open(url, in: window) }
+        open(url, in: window)
     }
 
     func removeRecent(_ item: RecentItem) {
@@ -358,7 +300,6 @@ final class AppModel: ObservableObject {
 
         var entries: [Entry]
         var active: Int?
-        var folder: Data?
     }
 
     func saveSession() {
@@ -375,7 +316,7 @@ final class AppModel: ObservableObject {
             }
             if document.id == focusedWindow?.primaryID { active = entries.count - 1 }
         }
-        let session = Session(entries: entries, active: active, folder: folder.flatMap { FileAccess.bookmark(for: $0.url) })
+        let session = Session(entries: entries, active: active)
         defaults.set(try? JSONEncoder().encode(session), forKey: "session")
     }
 
@@ -386,9 +327,6 @@ final class AppModel: ObservableObject {
         guard !didRestore else { return }
         didRestore = true
         guard let data = defaults.data(forKey: "session"), let session = try? JSONDecoder().decode(Session.self, from: data) else { return }
-        if let bookmark = session.folder, let url = FileAccess.resolve(bookmark), FileAccess.exists(url) {
-            openFolder(url, browse: false)
-        }
         let fallbacks = (settings.defaultEncoding, settings.defaultLineEnding)
         var restored: [EditorDocument] = []
         var activeDocument: EditorDocument?
@@ -418,6 +356,6 @@ final class AppModel: ObservableObject {
 
 /// Actions that menus and keyboard shortcuts send to the visible editor.
 enum EditorCommand {
-    case find, replace, findInFolder, goToLine, togglePreview, save, saveAs, outline
-    case openFile, openFolder, closeDocument, browseFiles, toggleSplit
+    case find, replace, goToLine, togglePreview, save, saveAs, outline
+    case openFile, closeDocument, toggleSplit
 }

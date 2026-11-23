@@ -20,7 +20,7 @@ struct DataFile: FileDocument {
 }
 
 enum EditorSheet: String, Identifiable {
-    case outline, statistics, compare, folderSearch, language
+    case outline, statistics, compare, language
     var id: String { rawValue }
 }
 
@@ -28,7 +28,7 @@ struct EditorScreen: View {
     @ObservedObject var document: EditorDocument
     /// The first pane uses the window's navigation bar; the second draws its own header.
     var pane: EditorPane = .primary
-    let startImport: (ImportKind) -> Void
+    let startImport: () -> Void
     @EnvironmentObject private var model: AppModel
     @EnvironmentObject private var window: WindowState
     @Environment(\.openWindow) private var openWindow
@@ -118,7 +118,6 @@ struct EditorScreen: View {
             case .outline: OutlineSheet(document: document)
             case .statistics: StatisticsSheet(document: document)
             case .compare: CompareSheet(document: document)
-            case .folderSearch: FolderSearchView()
             case .language: LanguagePicker(document: document)
             }
         }
@@ -393,13 +392,6 @@ struct EditorScreen: View {
                         Label("Outline", systemImage: "list.bullet.indent")
                     }
                 }
-                if model.folder != nil {
-                    Button {
-                        sheet = .folderSearch
-                    } label: {
-                        Label("Find in Folder…", systemImage: "doc.text.magnifyingglass")
-                    }
-                }
             }
             if !document.isReadOnly {
                 Section {
@@ -496,16 +488,9 @@ struct EditorScreen: View {
                 Label("New File", systemImage: "square.and.pencil")
             }
             Button {
-                startImport(.files)
+                startImport()
             } label: {
                 Label("Open File…", systemImage: "doc")
-            }
-            if model.folder != nil {
-                Button {
-                    window.showBrowser = true
-                } label: {
-                    Label("Browse Files", systemImage: "folder")
-                }
             }
         }
         Section {
@@ -579,7 +564,7 @@ struct EditorScreen: View {
             if Outline.supports(document.language) { sheet = .outline }
         case .closeDocument:
             model.requestClose(document)
-        case .findInFolder, .openFile, .openFolder, .browseFiles, .toggleSplit:
+        case .openFile, .toggleSplit:
             break
         }
     }

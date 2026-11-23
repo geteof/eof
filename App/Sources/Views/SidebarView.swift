@@ -5,19 +5,17 @@ struct SidebarView: View {
     @EnvironmentObject private var model: AppModel
     @EnvironmentObject private var window: WindowState
     @EnvironmentObject private var settings: AppSettings
-    let startImport: (ImportKind) -> Void
+    let startImport: () -> Void
     @Binding var showSettings: Bool
-    @State private var showFolderSearch = false
     @State private var showAllRecents = false
     /// Recent files shown before "Show All": enough to find today's work without a scroll.
     private static let recentLimit = 8
     /// The window is one column wide, so the sidebar is a page of its own.
     let isNarrow: Bool
 
-    /// Recent items not already open or being browsed, one per file.
+    /// Recent files not already open, one per file.
     private var recents: [RecentItem] {
         var seen = Set(model.documents.compactMap { $0.url.map(RecentItem.key) })
-        if let folder = model.folder { seen.insert(RecentItem.key(for: folder.url)) }
         return model.recents.filter { seen.insert($0.key).inserted }
     }
 
@@ -44,40 +42,6 @@ struct SidebarView: View {
                 }
             }
 
-            if let folder = model.folder {
-                Section("Folder") {
-                    Button {
-                        window.showBrowser = true
-                    } label: {
-                        Label {
-                            Text(verbatim: folder.name)
-                        } icon: {
-                            FileIcon(name: folder.name, isFolder: true)
-                        }
-                    }
-                    .contextMenu {
-                        Button(role: .destructive) {
-                            model.closeFolder()
-                        } label: {
-                            Label("Close Folder", systemImage: "xmark")
-                        }
-                    }
-                    .swipeActions {
-                        Button {
-                            model.closeFolder()
-                        } label: {
-                            Label("Close Folder", systemImage: "xmark")
-                        }
-                        .tint(.gray)
-                    }
-                    Button {
-                        showFolderSearch = true
-                    } label: {
-                        Label("Find in Folder…", systemImage: "magnifyingglass")
-                    }
-                }
-            }
-
             let recents = recents
             if !recents.isEmpty {
                 Section("Recent") {
@@ -100,7 +64,7 @@ struct SidebarView: View {
                                     }
                                 }
                             } icon: {
-                                FileIcon(name: item.name, isFolder: item.isFolder)
+                                FileIcon(name: item.name)
                             }
                         }
                         .swipeActions {
@@ -124,7 +88,7 @@ struct SidebarView: View {
             }
         }
         .overlay {
-            if model.documents.isEmpty, model.folder == nil, recents.isEmpty {
+            if model.documents.isEmpty, recents.isEmpty {
                 ContentUnavailableView {
                     Label("No Files", systemImage: "doc.text")
                 } description: {
@@ -134,8 +98,7 @@ struct SidebarView: View {
                     if isNarrow {
                         Button("New File") { model.newDocument(in: window) }
                             .buttonStyle(.borderedProminent)
-                        Button("Open File…") { startImport(.files) }
-                        Button("Open Folder…") { startImport(.folder) }
+                        Button("Open File…") { startImport() }
                     }
                 }
             }
@@ -164,25 +127,14 @@ struct SidebarView: View {
                     }
                     Divider()
                     Button {
-                        startImport(.files)
+                        startImport()
                     } label: {
                         Label("Open File…", systemImage: "doc")
-                    }
-                    Button {
-                        startImport(.folder)
-                    } label: {
-                        Label("Open Folder…", systemImage: "folder")
                     }
                 } label: {
                     Label("Add", systemImage: "plus")
                 }
             }
-        }
-        .sheet(isPresented: $showFolderSearch) {
-            FolderSearchView()
-        }
-        .onReceive(window.commands) { command in
-            if case .findInFolder = command, model.folder != nil { showFolderSearch = true }
         }
     }
 }
