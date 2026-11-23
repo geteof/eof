@@ -14,7 +14,6 @@ import EOFCore
 ///     -split <path>     open a file in the second pane
 ///     -selftest         drive the editor through its commands and write Documents/selftest.txt
 ///     -browse [subfolder]  show the file browser on the folder, optionally inside a subfolder
-///     -peek <name>      select this file in the browser's preview pane (wide screens)
 ///     -ziptest          compress and extract sample files and write Documents/ziptest.txt
 ///     -sidebar          show the sidebar once the files have loaded (the sidebar page when narrow)
 ///     -layoutreport     write window, safe-area and bar geometry to Documents/layout.txt
@@ -123,7 +122,7 @@ enum DebugLaunch {
         try? lines.joined(separator: "\n").write(to: documents.appendingPathComponent("ziptest.txt"), atomically: true, encoding: .utf8)
     }
 
-    static func applyBrowser(root: URL, path: inout [URL], selection: inout FileEntry?) {
+    static func applyBrowser(root: URL, path: inout [URL]) {
         guard arguments.contains("-browse") else { return }
         var folder = root
         if let sub = values("-browse").first, !sub.hasPrefix("-") {
@@ -131,9 +130,6 @@ enum DebugLaunch {
                 folder = folder.appendingPathComponent(String(component))
                 path.append(folder)
             }
-        }
-        if let name = values("-peek").first {
-            selection = FileEntry.load(folder.appendingPathComponent(name))
         }
     }
 

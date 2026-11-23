@@ -145,41 +145,25 @@ enum FilePeek {
 
 // MARK: - Browser
 
-/// A full-screen file browser for the open folder: one folder per page, full-width rows, and on a
-/// wide screen a preview of the selected file beside the list.
+/// A full-screen file browser for the open folder: one folder per page, full-width rows.
 struct BrowserView: View {
     @EnvironmentObject private var model: AppModel
     @EnvironmentObject private var window: WindowState
     let root: URL
     @State private var path: [URL] = []
-    @State private var selection: FileEntry?
 
     var body: some View {
-        GeometryReader { proxy in
-            // Wide enough for a list and a preview side by side: an unfolded phone or an iPad.
-            let wide = proxy.size.width >= 600
-            HStack(spacing: 0) {
-                NavigationStack(path: $path) {
-                    FolderPage(url: root, root: root, wide: wide, selection: $selection, open: open, popTo: popTo, push: { path.append($0) })
+        NavigationStack(path: $path) {
+            FolderPage(url: root, root: root, open: open, popTo: popTo, push: { path.append($0) })
+                .horizontalBars()
+                .navigationDestination(for: URL.self) { folder in
+                    FolderPage(url: folder, root: root, open: open, popTo: popTo, push: { path.append($0) })
                         .horizontalBars()
-                        .navigationDestination(for: URL.self) { folder in
-                            FolderPage(url: folder, root: root, wide: wide, selection: $selection, open: open, popTo: popTo, push: { path.append($0) })
-                                .horizontalBars()
-                        }
                 }
-                .frame(width: wide ? min(max(300, proxy.size.width * 0.44), 460) : nil)
-                if wide {
-                    Divider()
-                    NavigationStack {
-                        PreviewPane(entry: selection, open: open)
-                            .horizontalBars()
-                    }
-                }
-            }
         }
         .onAppear {
             #if DEBUG
-            DebugLaunch.applyBrowser(root: root, path: &path, selection: &selection)
+            DebugLaunch.applyBrowser(root: root, path: &path)
             #endif
         }
     }
@@ -204,8 +188,6 @@ struct BrowserView: View {
 private struct FolderPage: View {
     let url: URL
     let root: URL
-    let wide: Bool
-    @Binding var selection: FileEntry?
     let open: (URL) -> Void
     let popTo: (URL) -> Void
     let push: (URL) -> Void
@@ -243,11 +225,9 @@ private struct FolderPage: View {
         var id: Int { hashValue }
     }
 
-    init(url: URL, root: URL, wide: Bool, selection: Binding<FileEntry?>, open: @escaping (URL) -> Void, popTo: @escaping (URL) -> Void, push: @escaping (URL) -> Void) {
+    init(url: URL, root: URL, open: @escaping (URL) -> Void, popTo: @escaping (URL) -> Void, push: @escaping (URL) -> Void) {
         self.url = url
         self.root = root
-        self.wide = wide
-        _selection = selection
         self.open = open
         self.popTo = popTo
         self.push = push
@@ -399,8 +379,6 @@ private struct FolderPage: View {
             if picked.contains(entry.url) { picked.remove(entry.url) } else { picked.insert(entry.url) }
         } else if entry.isDirectory {
             push(entry.url)
-        } else if wide {
-            selection = entry
         } else {
             open(entry.url)
         }
@@ -428,7 +406,7 @@ private struct FolderPage: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .listRowBackground(isFresh(entry) ? Color.green.opacity(0.18) : (!isSelecting && wide && selection?.url.standardizedFileURL.path == entry.url.standardizedFileURL.path ? Color.accentColor.opacity(0.16) : nil))
+        .listRowBackground(isFresh(entry) ? Color.green.opacity(0.18) : nil)
         .onDrag { FileDrag.provider(url: entry.url, name: entry.name, opensWindow: !entry.isDirectory) }
         .contextMenu {
             actions(for: entry)
@@ -462,7 +440,7 @@ private struct FolderPage: View {
         Button {
             tap(entry)
         } label: {
-            GridCell(entry: entry, isOpen: isOpen(entry), isHighlighted: isFresh(entry) || (!isSelecting && wide && selection?.url.standardizedFileURL.path == entry.url.standardizedFileURL.path))
+            GridCell(entry: entry, isOpen: isOpen(entry), isHighlighted: isFresh(entry))
                 .overlay(alignment: .topTrailing) {
                     if isSelecting {
                         mark(entry)
@@ -746,7 +724,6 @@ private struct FolderPage: View {
                 guard target != entry.url else { return }
                 guard !manager.fileExists(atPath: target.path) else { throw FileAccess.Failure(message: String(localized: "An item with that name already exists.")) }
                 try relocate(entry.url, to: target) { try manager.moveItem(at: entry.url, to: target) }
-                if selection?.url == entry.url { selection = FileEntry.load(target) }
                 reload()
             }
         } catch {
@@ -801,7 +778,6 @@ private struct FolderPage: View {
                     model.close(document)
                 }
                 try FileManager.default.removeItem(at: entry.url)
-                if selection?.url == entry.url { selection = nil }
             }
         } catch {
             fail(error)
@@ -859,7 +835,6 @@ private struct FolderPage: View {
     private func revealFresh(_ proxy: ScrollViewProxy) {
         guard let fresh, let entry = shown.first(where: { $0.name == fresh }) else { return }
         withAnimation { proxy.scrollTo(entry.id, anchor: .center) }
-        if wide, !entry.isDirectory { selection = entry }
     }
 
     /// Hands the items to the system's move sheet, which can put them in any folder the user can reach.
@@ -884,7 +859,6 @@ private struct FolderPage: View {
                     let rest = String(document.url!.standardizedFileURL.path.dropFirst(oldPath.count))
                     document.adopt(url: rest.isEmpty ? new : new.appendingPathComponent(String(rest.dropFirst())))
                 }
-                if selection?.url == old { selection = nil }
             }
             model.saveSession()
         case .failure(let error):
@@ -1002,8 +976,6 @@ private struct Thumbnail: View {
 /// What a file holds, without opening it as a document: text, a thumbnail, or the first bytes.
 private struct FileContentPreview: View {
     let entry: FileEntry
-    /// The context-menu card uses a thumbnail; the pane uses the live previewer.
-    let live: Bool
     @State private var text: String?
     @State private var bytes: Data?
     @State private var loaded = false
@@ -1019,20 +991,13 @@ private struct FileContentPreview: View {
                         .foregroundStyle(.secondary)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else if Archives.isArchive(entry.url) {
-                ArchiveContents(url: entry.url, showsActions: live)
             } else if FileKind.canPreview(entry.url) {
-                if live {
-                    QuickLookView(url: entry.url)
-                        .id(entry.url)
-                } else {
-                    Thumbnail(url: entry.url)
-                        .padding(12)
-                }
+                Thumbnail(url: entry.url)
+                    .padding(12)
             } else if let text {
                 ScrollView {
                     Text(verbatim: text.isEmpty ? String(localized: "Empty File") : text)
-                        .font(.system(size: live ? 13 : 11, design: .monospaced))
+                        .font(.system(size: 11, design: .monospaced))
                         .foregroundStyle(text.isEmpty ? .secondary : .primary)
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(12)
@@ -1048,12 +1013,11 @@ private struct FileContentPreview: View {
             }
         }
         .task(id: entry.url) {
-            guard !entry.isDirectory, !FileKind.canPreview(entry.url), !Archives.isArchive(entry.url) else { return }
+            guard !entry.isDirectory, !FileKind.canPreview(entry.url) else { return }
             let url = entry.url
-            let limit = live ? 200_000 : 6000
             let result = await Task.detached { () -> (String?, Data?) in
                 if FileKind.isMedia(url) { return (nil, FilePeek.bytesPrefix(url)) }
-                if let text = FilePeek.textPrefix(url, limit: limit) { return (text, nil) }
+                if let text = FilePeek.textPrefix(url, limit: 6000) { return (text, nil) }
                 return (nil, FilePeek.bytesPrefix(url))
             }.value
             text = result.0
@@ -1080,56 +1044,11 @@ private struct FilePeekCard: View {
             .padding(14)
             .frame(maxWidth: .infinity, alignment: .leading)
             Divider()
-            FileContentPreview(entry: entry, live: false)
+            FileContentPreview(entry: entry)
                 .frame(height: entry.isDirectory ? 140 : 320)
         }
         .frame(width: 340)
         .background(Color(uiColor: .systemBackground))
-    }
-}
-
-/// The right-hand side on a wide screen: look at the selected file before opening it.
-private struct PreviewPane: View {
-    let entry: FileEntry?
-    let open: (URL) -> Void
-
-    var body: some View {
-        Group {
-            if let entry {
-                VStack(spacing: 0) {
-                    HStack(alignment: .top, spacing: 12) {
-                        FileIcon(name: entry.name, isFolder: entry.isDirectory)
-                        VStack(alignment: .leading, spacing: 3) {
-                            Text(verbatim: entry.name)
-                                .font(.headline)
-                                .fixedSize(horizontal: false, vertical: true)
-                                .textSelection(.enabled)
-                            Text(verbatim: entry.summary)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-                        Spacer(minLength: 0)
-                    }
-                    .padding(14)
-                    Divider()
-                    FileContentPreview(entry: entry, live: true)
-                }
-                .toolbar {
-                    ToolbarItem(placement: .primaryAction) {
-                        Button {
-                            open(entry.url)
-                        } label: {
-                            Label("Open in Editor", systemImage: "square.and.pencil")
-                                .labelStyle(.titleAndIcon)
-                        }
-                        .buttonStyle(.borderedProminent)
-                    }
-                }
-            } else {
-                ContentUnavailableView("Select a File", systemImage: "doc.text.magnifyingglass", description: Text("Tap a file to look at it here, then open it in the editor from the top right or its menu."))
-            }
-        }
-        .navigationBarTitleDisplayMode(.inline)
     }
 }
 
