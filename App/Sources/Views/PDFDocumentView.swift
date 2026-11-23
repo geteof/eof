@@ -6,7 +6,7 @@ import SwiftUI
 struct PDFDocumentView: UIViewRepresentable {
     let document: PDFDocument
     /// Same contract as the editor's: offset, top of the content, and whether the user scrolled.
-    let onScroll: (_ offset: CGFloat, _ top: CGFloat, _ userDriven: Bool) -> Void
+    let onScroll: (ScrollReport) -> Void
 
     /// Nil when the file cannot be read or needs a password; Quick Look handles those.
     static func load(_ url: URL) -> PDFDocument? {
@@ -38,7 +38,7 @@ struct PDFDocumentView: UIViewRepresentable {
     }
 
     final class Coordinator {
-        var onScroll: ((CGFloat, CGFloat, Bool) -> Void)?
+        var onScroll: ((ScrollReport) -> Void)?
         private var observation: NSKeyValueObservation?
 
         func watch(_ view: PDFView) {
@@ -48,10 +48,8 @@ struct PDFDocumentView: UIViewRepresentable {
             // to adjust itself, the scroll view kept a strip the height of the status bar empty.
             scrollView.contentInsetAdjustmentBehavior = .never
             observation = scrollView.observe(\.contentOffset, options: [.new]) { [weak self] scrollView, _ in
-                let top = -scrollView.adjustedContentInset.top
-                let userDriven = scrollView.isTracking || scrollView.isDragging || scrollView.isDecelerating
                 MainActor.assumeIsolated {
-                    self?.onScroll?(scrollView.contentOffset.y, top, userDriven)
+                    self?.onScroll?(ScrollReport(scrollView))
                 }
             }
         }
@@ -70,7 +68,7 @@ struct PDFDocumentView: UIViewRepresentable {
 /// damaged file).
 struct PDFPreview: View {
     let url: URL
-    let onScroll: (_ offset: CGFloat, _ top: CGFloat, _ userDriven: Bool) -> Void
+    let onScroll: (ScrollReport) -> Void
     @State private var document: PDFDocument?
     @State private var failed = false
 

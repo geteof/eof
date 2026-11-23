@@ -1,5 +1,22 @@
 import SwiftUI
 
+/// Where a scroll view stands, for deciding whether to hide the bars.
+struct ScrollReport {
+    var offset: CGFloat
+    /// The offset at the top and at the end of the content.
+    var top: CGFloat
+    var bottom: CGFloat
+    /// The user is dragging or the content is still moving from a drag.
+    var userDriven: Bool
+
+    init(_ scrollView: UIScrollView) {
+        offset = scrollView.contentOffset.y
+        top = -scrollView.adjustedContentInset.top
+        bottom = max(top, scrollView.contentSize.height + scrollView.adjustedContentInset.bottom - scrollView.bounds.height)
+        userDriven = scrollView.isTracking || scrollView.isDragging || scrollView.isDecelerating
+    }
+}
+
 /// Hides a screen's bars while the user scrolls down through content and shows them again on
 /// scrolling up or reaching the top, as Safari does. Only scrolling the user drives counts:
 /// typing and jumping to a line also move the content, and must not hide anything.
@@ -8,11 +25,25 @@ final class BarVisibility: ObservableObject {
     private var anchor: CGFloat = 0
     /// How far the content must move in one direction before the bars change.
     private let threshold: CGFloat = 28
+    /// How far content must scroll before the bars may hide. Hiding them makes the view taller,
+    /// so content that only just scrolls would stop scrolling, return to the top and bring the
+    /// bars back, over and over. Once hidden, they stay hidden while a little room is left.
+    private let roomToHide: CGFloat = 240
+    private let roomToStayHidden: CGFloat = 40
 
-    func scrolled(offset: CGFloat, top: CGFloat, userDriven: Bool) {
+    func scrolled(_ report: ScrollReport) {
+        let top = report.top
+        // Past the end the content bounces back up; that is not the user scrolling up.
+        let offset = min(report.offset, report.bottom)
+        let userDriven = report.userDriven
         #if DEBUG
-        lastScroll = "offset=\(Int(offset)) top=\(Int(top)) user=\(userDriven)"
+        lastScroll = "offset=\(Int(offset)) top=\(Int(top)) bottom=\(Int(report.bottom)) user=\(userDriven)"
         #endif
+        if report.bottom - top < (hidden ? roomToStayHidden : roomToHide) {
+            reveal()
+            anchor = offset
+            return
+        }
         if offset <= top + 4 {
             reveal()
             anchor = offset
@@ -64,9 +95,9 @@ final class BarVisibility: ObservableObject {
     }
 }
 
-/// How a Markdown or HTML preview shares the screen with its source.
-enum PreviewLayout: String {
-    case split, previewOnly
+/// What a Markdown, HTML or SVG document shows: its source, its preview, or both side by side.
+enum ViewMode: Hashable {
+    case source, preview, sideBySide
 }
 
 /// On iPhone Duo, iOS 27 moves the status bar and toolbar buttons into a column at the side of

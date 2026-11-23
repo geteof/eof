@@ -8,6 +8,7 @@ import EOFCore
 ///     -folder <path>    open a folder as the project
 ///     -find <text>      show the find bar with this query (-replace also shows the replace row)
 ///     -preview          show the Markdown / HTML preview
+///     -sidebyside       show the source and the preview side by side (wide windows)
 ///     -sheet <name>     outline | statistics | compare | language
 ///     -line <n>         put the caret on this line
 ///     -readonly         open in read-only mode
@@ -133,13 +134,14 @@ enum DebugLaunch {
         }
     }
 
-    static func apply(to document: EditorDocument, showFind: inout Bool, findWithReplace: inout Bool, showPreview: inout Bool, sheet: inout EditorSheet?) {
+    static func apply(to document: EditorDocument, showFind: inout Bool, findWithReplace: inout Bool, viewMode: inout ViewMode, sheet: inout EditorSheet?) {
         guard isActive, !consumed else { return }
         // Only the last file given is decorated; earlier ones just fill the tab strip.
         guard let last = values("-open").last, document.url?.lastPathComponent == resolve(last).lastPathComponent else { return }
         consumed = true
         if arguments.contains("-readonly") { document.userReadOnly = true }
-        if arguments.contains("-preview") { showPreview = true }
+        if arguments.contains("-preview") { viewMode = .preview }
+        if arguments.contains("-sidebyside") { viewMode = .sideBySide }
         if let name = values("-sheet").first { sheet = EditorSheet(rawValue: name) }
         if let line = values("-line").first.flatMap(Int.init) {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { document.controller.goToLine(line) }

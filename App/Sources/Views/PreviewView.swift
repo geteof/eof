@@ -7,7 +7,7 @@ import WebKit
 struct PreviewView: UIViewRepresentable {
     let document: EditorDocument
     /// Reports scrolling, like the editor does, so the bars can hide.
-    var onScroll: ((_ offset: CGFloat, _ top: CGFloat, _ userDriven: Bool) -> Void)?
+    var onScroll: ((ScrollReport) -> Void)?
     @EnvironmentObject private var settings: AppSettings
 
     func makeCoordinator() -> Coordinator { Coordinator() }
@@ -38,10 +38,10 @@ struct PreviewView: UIViewRepresentable {
     }
 
     final class Coordinator: NSObject, WKNavigationDelegate, UIScrollViewDelegate {
-        var onScroll: ((CGFloat, CGFloat, Bool) -> Void)?
+        var onScroll: ((ScrollReport) -> Void)?
 
         func scrollViewDidScroll(_ scrollView: UIScrollView) {
-            onScroll?(scrollView.contentOffset.y, -scrollView.adjustedContentInset.top, scrollView.isTracking || scrollView.isDecelerating)
+            onScroll?(ScrollReport(scrollView))
         }
 
         private var subscription: AnyCancellable?

@@ -60,7 +60,7 @@ final class EditorController: NSObject, TextViewDelegate, UIScrollViewDelegate, 
     var onFocus: (() -> Void)?
     /// Called on every scroll with the offset, the top of the content and whether the user is
     /// dragging or flinging (rather than the view scrolling to follow the caret).
-    var onScroll: ((_ offset: CGFloat, _ top: CGFloat, _ userDriven: Bool) -> Void)?
+    var onScroll: ((ScrollReport) -> Void)?
     private var theme: RunestoneTheme
     private var appliedStamp: Int?
     private var isReplacingProgrammatically = false
@@ -358,7 +358,7 @@ final class EditorController: NSObject, TextViewDelegate, UIScrollViewDelegate, 
     }
 
     func scrollViewDidScroll(_ scrollView: UIScrollView) {
-        onScroll?(scrollView.contentOffset.y, -scrollView.adjustedContentInset.top, scrollView.isTracking || scrollView.isDecelerating)
+        onScroll?(ScrollReport(scrollView))
     }
 
     func textViewDidBeginEditing(_ textView: TextView) {

@@ -34,14 +34,12 @@ struct EditorScreen: View {
     @Environment(\.openWindow) private var openWindow
     @EnvironmentObject private var settings: AppSettings
     @Environment(\.colorScheme) private var colorScheme
-    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
     @State private var showFind = false
     @State private var findWithReplace = false
-    @State private var showPreview = false
+    @State private var viewMode = ViewMode.source
     @State private var showHex = false
     @StateObject private var bars = BarVisibility()
-    @AppStorage("previewLayout") private var previewLayout = PreviewLayout.split
     @State private var sheet: EditorSheet?
     @State private var showGoToLine = false
     @State private var goToLineText = ""
@@ -53,9 +51,15 @@ struct EditorScreen: View {
         !document.isBinary && (document.language.id == "markdown" || document.language.id == "html" || document.language.id == "xml" && document.name.lowercased().hasSuffix(".svg"))
     }
 
+    /// What the screen shows: side by side falls back to the preview alone when the window is
+    /// too narrow for two readable columns, and documents without a preview show their source.
+    private func shownMode(sideBySide: Bool) -> ViewMode {
+        guard canPreview else { return .source }
+        return viewMode == .sideBySide && !sideBySide ? .preview : viewMode
+    }
+
     var body: some View {
         GeometryReader { proxy in
-            // Side by side needs room for two readable columns; below that the preview takes over.
             let sideBySide = proxy.size.width >= 700
             VStack(spacing: 0) {
                 if pane == .secondary {
@@ -79,7 +83,7 @@ struct EditorScreen: View {
                 content(sideBySide: sideBySide)
                 if !bars.hidden {
                     Divider()
-                    StatusBar(document: document, status: document.status, sheet: $sheet, preview: canPreview ? $showPreview : nil) {
+                    StatusBar(document: document, status: document.status, sheet: $sheet, viewMode: canPreview ? modeBinding(sideBySide: sideBySide) : nil, allowsSideBySide: sideBySide) {
                         goToLineText = ""
                         showGoToLine = true
                     }
@@ -158,10 +162,10 @@ struct EditorScreen: View {
             if !window.isSplit || window.focusedPane == pane { handle(command) }
         }
         .onAppear {
-            if settings.openInPreview, canPreview { showPreview = true }
-            document.controller.onScroll = { [bars, settings] offset, top, userDriven in
+            if settings.openInPreview, canPreview { viewMode = .preview }
+            document.controller.onScroll = { [bars, settings] report in
                 guard settings.hideBarsOnScroll else { return }
-                bars.scrolled(offset: offset, top: top, userDriven: userDriven)
+                bars.scrolled(report)
             }
             // Weak, so a closed window is not kept alive by a document it once showed.
             let ownWindow = window
@@ -173,14 +177,14 @@ struct EditorScreen: View {
                 ownWindow.focusedPane = ownPane
             }
             #if DEBUG
-            DebugLaunch.apply(to: document, showFind: &showFind, findWithReplace: &findWithReplace, showPreview: &showPreview, sheet: &sheet)
+            DebugLaunch.apply(to: document, showFind: &showFind, findWithReplace: &findWithReplace, viewMode: &viewMode, sheet: &sheet)
             if ProcessInfo.processInfo.arguments.contains("-hidebars") {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 2) { bars.debugHide() }
             }
             #endif
         }
         .onChange(of: document.language) { _, _ in
-            if !canPreview { showPreview = false }
+            if !canPreview { viewMode = .source }
         }
     }
 
@@ -190,9 +194,9 @@ struct EditorScreen: View {
     private func content(sideBySide: Bool) -> some View {
         if document.isBinary {
             if let url = document.url, !showHex, url.pathExtension.lowercased() == "pdf" {
-                PDFPreview(url: url) { [bars, settings] offset, top, userDriven in
+                PDFPreview(url: url) { [bars, settings] report in
                     guard settings.hideBarsOnScroll else { return }
-                    bars.scrolled(offset: offset, top: top, userDriven: userDriven)
+                    bars.scrolled(report)
                 }
                 .id(url)
             } else if let url = document.url, !showHex, FileKind.canPreview(url) {
@@ -205,44 +209,36 @@ struct EditorScreen: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .onAppear { document.loadBinaryData() }
             }
-        } else if showPreview, canPreview {
-            if sideBySide, previewLayout == .split {
+        } else {
+            switch shownMode(sideBySide: sideBySide) {
+            case .source:
+                editor
+            case .preview:
+                preview
+            case .sideBySide:
                 HStack(spacing: 0) {
                     editor
                     Divider()
                     preview
-                        .overlay(alignment: .bottomLeading) { if !bars.hidden { previewLayoutButton } }
                 }
-            } else {
-                preview
-                    .overlay(alignment: .bottomLeading) { if sideBySide, !bars.hidden { previewLayoutButton } }
             }
-        } else {
-            editor
         }
+    }
+
+    /// The mode the status bar shows and sets: what is on screen, so a side-by-side choice
+    /// that does not fit reads as Preview.
+    private func modeBinding(sideBySide: Bool) -> Binding<ViewMode> {
+        Binding(
+            get: { shownMode(sideBySide: sideBySide) },
+            set: { mode in withAnimation(.snappy(duration: 0.2)) { viewMode = mode } }
+        )
     }
 
     private var preview: some View {
-        PreviewView(document: document) { [bars, settings] offset, top, userDriven in
+        PreviewView(document: document) { [bars, settings] report in
             guard settings.hideBarsOnScroll else { return }
-            bars.scrolled(offset: offset, top: top, userDriven: userDriven)
+            bars.scrolled(report)
         }
-    }
-
-    /// Hides or brings back the source beside the preview.
-    private var previewLayoutButton: some View {
-        Button {
-            withAnimation(.snappy) { previewLayout = previewLayout == .split ? .previewOnly : .split }
-        } label: {
-            Label(previewLayout == .split ? "Hide Editor" : "Show Editor",
-                  systemImage: previewLayout == .split ? "arrow.left.to.line" : "arrow.right.to.line")
-                .labelStyle(.iconOnly)
-                .font(.footnote.weight(.semibold))
-                .frame(width: 32, height: 32)
-                .background(.regularMaterial, in: Circle())
-        }
-        .buttonStyle(.plain)
-        .padding(10)
     }
 
     private var editor: some View {
@@ -256,8 +252,8 @@ struct EditorScreen: View {
 
     // MARK: - Toolbar
 
-    /// The find, preview and more buttons: in the navigation bar for the first pane, in the
-    /// header for the second.
+    /// The find and more buttons: in the navigation bar for the first pane, in the header for
+    /// the second. Source, preview and side by side are switched in the status bar.
     @ViewBuilder
     private var toolbarButtons: some View {
             if !document.isBinary {
@@ -265,15 +261,6 @@ struct EditorScreen: View {
                     toggleFind(replace: false)
                 } label: {
                     Label("Find", systemImage: "magnifyingglass")
-                }
-                if canPreview {
-                    // A plain button: when a narrow bar folds it into the overflow menu it still
-                    // toggles, where a menu with a primary action only opened its submenu.
-                    Button {
-                        togglePreview()
-                    } label: {
-                        Label(showPreview ? "Show Source" : "Preview", systemImage: showPreview ? "eye.fill" : "eye")
-                    }
                 }
             }
             if document.isBinary, let url = document.url, FileKind.canPreview(url) {
@@ -365,18 +352,6 @@ struct EditorScreen: View {
 
     @ViewBuilder
     private var moreMenu: some View {
-        // Side by side only fits a wide window; a narrow one always shows the preview alone.
-        if canPreview, horizontalSizeClass == .regular {
-            Section {
-                Picker(selection: $previewLayout) {
-                    Label("Editor and Preview", systemImage: "rectangle.split.2x1").tag(PreviewLayout.split)
-                    Label("Preview Only", systemImage: "eye").tag(PreviewLayout.previewOnly)
-                } label: {
-                    Label("Preview Layout", systemImage: "rectangle.split.2x1")
-                }
-                .pickerStyle(.menu)
-            }
-        }
         if !document.isBinary {
             Section {
                 ControlGroup {
@@ -621,8 +596,9 @@ struct EditorScreen: View {
         document.controller.goToLine(line, column: parts.count > 1 ? parts[1] : 1)
     }
 
+    /// The keyboard command: from the source to the preview, and from either preview back.
     private func togglePreview() {
-        withAnimation(.snappy(duration: 0.2)) { showPreview.toggle() }
+        withAnimation(.snappy(duration: 0.2)) { viewMode = viewMode == .source ? .preview : .source }
     }
 
     private func run(_ transform: TextTransform) {
