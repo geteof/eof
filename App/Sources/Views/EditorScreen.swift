@@ -34,6 +34,7 @@ struct EditorScreen: View {
     @Environment(\.openWindow) private var openWindow
     @EnvironmentObject private var settings: AppSettings
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
     @State private var showFind = false
     @State private var findWithReplace = false
