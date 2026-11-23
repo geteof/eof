@@ -1,0 +1,11 @@
+plugins {
+    id 'java'
+}
+
+def greet(String name) {
+    println "Hello ${name}"
+}
+
+dependencies {
+    implementation 'org.example:library:1.2.3'
+}

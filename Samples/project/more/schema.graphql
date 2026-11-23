@@ -1,0 +1,10 @@
+# A user and the query that finds one
+type User {
+  id: ID!
+  name: String
+  posts(first: Int = 10): [Post!]!
+}
+
+query FindUser($id: ID!) {
+  user(id: $id) { name }
+}

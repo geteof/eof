@@ -1747,6 +1747,16 @@
         }
       }
     },
+    "Open Here": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在此打开"
+          }
+        }
+      }
+    },
     "Open Markdown and HTML as Preview": {
       "localizations": {
         "zh-Hans": {

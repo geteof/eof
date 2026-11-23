@@ -28,6 +28,18 @@ final class LanguageTests: XCTestCase {
         XCTAssertEqual(Languages.detect(filename: "run", firstLine: "hello").id, "plain")
     }
 
+    /// Files the vendored grammars colour must reach their language, or they stay plain.
+    func testDetectionForVendoredGrammars() {
+        let expected = [
+            "Makefile": "makefile", "rules.mk": "makefile", "build.ps1": "powershell", "setup.bat": "batch", "run.cmd": "batch",
+            "build.gradle": "groovy", "Jenkinsfile": "groovy", "schema.graphql": "graphql", "nginx.conf": "nginx",
+            "main.zig": "zig", "core.clj": "clojure", ".gitignore": "gitignore", ".dockerignore": "gitignore",
+        ]
+        for (name, id) in expected {
+            XCTAssertEqual(Languages.detect(filename: name).id, id, name)
+        }
+    }
+
     func testLanguageIDsAreUnique() {
         XCTAssertEqual(Set(Languages.all.map(\.id)).count, Languages.all.count)
     }

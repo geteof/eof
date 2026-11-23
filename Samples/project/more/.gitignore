@@ -1,0 +1,5 @@
+# Build output
+/build/
+*.log
+!keep.log
+[Bb]in/

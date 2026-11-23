@@ -24,6 +24,16 @@ PROJECTS = [
     ("ZIPFoundation", "Zip archives", "weichsel/ZIPFoundation", "86fc841708997c5bce8545e23845125f4eb28493", ["LICENSE"]),
     ("SWCompression", "TAR, GZIP, BZIP2, XZ and 7-Zip", "tsolomko/SWCompression", "03a68e67991815a267e28174a0a01fbe0cff937b", ["LICENSE"]),
     ("BitByteData", "Used by SWCompression", "tsolomko/BitByteData", "e1a5443be67daf0833cbb5f4fa3a06a265ca3105", ["LICENSE"]),
+    ("tree-sitter-make", "Makefile grammar and highlights", "tree-sitter-grammars/tree-sitter-make", "70613f3d812cbabbd7f38d104d60a409c4008b43", ["LICENSE"]),
+    ("tree-sitter-powershell", "PowerShell grammar and highlights", "airbus-cert/tree-sitter-powershell", "65ea6919e816a7ac142acec7ee72757f89db8439", ["LICENSE"]),
+    ("tree-sitter-batch", "Batch grammar and highlights", "wharflab/tree-sitter-batch", "2aa22f00d7f5bbe58556b8eef0b1fc1629508603", ["LICENSE"]),
+    ("tree-sitter-groovy", "Groovy and Gradle grammar and highlights", "murtaza64/tree-sitter-groovy", "2a6ddd558b6aa39c5b77d8db9fe9baf817486b2c", ["LICENSE"]),
+    ("tree-sitter-graphql", "GraphQL grammar and highlights", "bkegley/tree-sitter-graphql", "5e66e961eee421786bdda8495ed1db045e06b5fe", ["LICENSE"]),
+    ("tree-sitter-nginx", "Nginx grammar and highlights", "opa-oz/tree-sitter-nginx", "7cdf006ed1addef698fc680ae31721950f85e5e9", ["LICENSE"]),
+    ("tree-sitter-zig", "Zig grammar and highlights", "tree-sitter-grammars/tree-sitter-zig", "6479aa13f32f701c383083d8b28360ebd682fb7d", ["LICENSE"]),
+    ("tree-sitter-clojure", "Clojure grammar", "sogaiu/tree-sitter-clojure", "e43eff80d17cf34852dcd92ca5e6986d23a7040f", ["COPYING.txt"]),
+    ("tree-sitter-gitignore", "Ignore-file grammar", "shunsambongi/tree-sitter-gitignore", "f4685bf11ac466dd278449bcfe5fd014e94aa504", ["LICENSE"]),
+    ("nvim-treesitter", "Highlight queries for Clojure and ignore files, and the base of the Kotlin query", "nvim-treesitter/nvim-treesitter", "52773f0d13a0c11d0c3ef33c14ab6ecc1c17148b", ["LICENSE"]),
     ("Material Icon Theme", "File and folder icons", "material-extensions/vscode-material-icon-theme", "0d17360506c477b4ccb065d8acdbd056331af1fb", ["LICENSE"]),
 ]
 

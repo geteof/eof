@@ -168,6 +168,11 @@ private struct EditorArea: View {
     @EnvironmentObject private var window: WindowState
 
     var body: some View {
+        panes.modifier(EditorDropZone())
+    }
+
+    @ViewBuilder
+    private var panes: some View {
         if let primary = model.document(window.primaryID) {
             if let secondary = model.document(window.secondaryID) {
                 GeometryReader { proxy in

@@ -4,6 +4,15 @@ import Runestone
 import TreeSitterDockerfile
 import TreeSitterIni
 import TreeSitterKotlin
+import TreeSitterMakeEOF
+import TreeSitterPowerShellEOF
+import TreeSitterBatchEOF
+import TreeSitterGroovyEOF
+import TreeSitterGraphQLEOF
+import TreeSitterNginxEOF
+import TreeSitterZigEOF
+import TreeSitterClojureEOF
+import TreeSitterGitignoreEOF
 import TreeSitterSwiftRunestone
 import TreeSitterObjectiveCRunestone
 import TreeSitterCRunestone
@@ -65,6 +74,8 @@ enum Grammars {
         "perl": "perl", "r": "r", "haskell": "haskell", "elixir": "elixir", "protobuf": "proto", "terraform": "hcl",
         "tex": "latex", "cmake": "cmake", "nix": "nix", "ocaml": "ocaml", "elm": "elm", "julia": "julia", "pascal": "pascal",
         "kotlin": "kotlin", "dockerfile": "dockerfile", "ini": "ini",
+        "makefile": "make", "powershell": "powershell", "batch": "batch", "groovy": "groovy", "graphql": "graphql",
+        "nginx": "nginx", "zig": "zig", "clojure": "clojure", "gitignore": "gitignore",
     ]
 
     /// File extensions that need a different grammar from the rest of their language.
@@ -79,6 +90,9 @@ enum Grammars {
         "yml": "yaml", "objc": "objectiveC", "objective-c": "objectiveC", "c++": "cpp", "c#": "cSharp", "cs": "cSharp",
         "golang": "go", "rb": "ruby", "rs": "rust", "md": "markdown", "tex": "latex", "proto": "proto", "tf": "hcl",
         "kt": "kotlin", "kotlin": "kotlin", "docker": "dockerfile", "dockerfile": "dockerfile", "ini": "ini", "properties": "ini",
+        "make": "make", "makefile": "make", "mk": "make", "ps1": "powershell", "pwsh": "powershell", "powershell": "powershell",
+        "bat": "batch", "cmd": "batch", "batch": "batch", "groovy": "groovy", "gradle": "groovy", "graphql": "graphql", "gql": "graphql",
+        "nginx": "nginx", "zig": "zig", "clojure": "clojure", "clj": "clojure", "cljs": "clojure", "edn": "clojure", "gitignore": "gitignore",
     ]
 
     static func hasGrammar(for language: Language) -> Bool {
@@ -165,6 +179,16 @@ enum Grammars {
         case "kotlin": return TreeSitterLanguage(tree_sitter_kotlin(), highlightsQuery: query("kotlin"))
         case "dockerfile": return TreeSitterLanguage(tree_sitter_dockerfile(), highlightsQuery: query("dockerfile"))
         case "ini": return TreeSitterLanguage(tree_sitter_ini(), highlightsQuery: query("ini"))
+        // Grammars vendored in Grammars/ by Tools/grammars.py.
+        case "make": return TreeSitterLanguage(tree_sitter_make(), highlightsQuery: query("make"))
+        case "powershell": return TreeSitterLanguage(tree_sitter_powershell(), highlightsQuery: query("powershell"))
+        case "batch": return TreeSitterLanguage(tree_sitter_batch(), highlightsQuery: query("batch"))
+        case "groovy": return TreeSitterLanguage(tree_sitter_groovy(), highlightsQuery: query("groovy"))
+        case "graphql": return TreeSitterLanguage(tree_sitter_graphql(), highlightsQuery: query("graphql"))
+        case "nginx": return TreeSitterLanguage(tree_sitter_nginx(), highlightsQuery: query("nginx"))
+        case "zig": return TreeSitterLanguage(tree_sitter_zig(), highlightsQuery: query("zig"))
+        case "clojure": return TreeSitterLanguage(tree_sitter_clojure(), highlightsQuery: query("clojure"))
+        case "gitignore": return TreeSitterLanguage(tree_sitter_gitignore(), highlightsQuery: query("gitignore"))
         default: return nil
         }
     }

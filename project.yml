@@ -38,6 +38,9 @@ packages:
   TreeSitterIni:
     url: https://github.com/justinmk/tree-sitter-ini
     revision: e4018b5176132b4f3c5d6e61cea383f42288d0f5
+  # Grammars with no usable Swift package, vendored at pinned revisions by Tools/grammars.py.
+  EOFGrammars:
+    path: Grammars
 targets:
   EOF:
     type: application
@@ -52,6 +55,24 @@ targets:
       - package: TreeSitterKotlin
       - package: TreeSitterDockerfile
       - package: TreeSitterIni
+      - package: EOFGrammars
+        product: TreeSitterMakeEOF
+      - package: EOFGrammars
+        product: TreeSitterPowerShellEOF
+      - package: EOFGrammars
+        product: TreeSitterBatchEOF
+      - package: EOFGrammars
+        product: TreeSitterGroovyEOF
+      - package: EOFGrammars
+        product: TreeSitterGraphQLEOF
+      - package: EOFGrammars
+        product: TreeSitterNginxEOF
+      - package: EOFGrammars
+        product: TreeSitterZigEOF
+      - package: EOFGrammars
+        product: TreeSitterClojureEOF
+      - package: EOFGrammars
+        product: TreeSitterGitignoreEOF
       - package: TreeSitterLanguages
         product: TreeSitterSwiftRunestone
       - package: TreeSitterLanguages
@@ -165,6 +186,9 @@ targets:
         UTExportedTypeDeclarations:
           - UTTypeIdentifier: moe.luoling.eof.tab
             UTTypeDescription: EOF Tab
+            UTTypeConformsTo: [public.data]
+          - UTTypeIdentifier: moe.luoling.eof.file
+            UTTypeDescription: EOF File
             UTTypeConformsTo: [public.data]
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait
