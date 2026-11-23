@@ -21,6 +21,8 @@ enum FileKind {
         if documentExtensions.contains(url.pathExtension.lowercased()) { return true }
         guard let type = type(url) else { return false }
         if type.conforms(to: .svg) { return false } // SVG is XML: it opens in the editor, with a preview
+        // Scripts such as JavaScript are declared executable as well as source code; they are text.
+        if type.conforms(to: .text) || type.conforms(to: .sourceCode) { return false }
         return (viewable + opaque).contains { type.conforms(to: $0) }
     }
 
