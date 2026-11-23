@@ -274,7 +274,8 @@ final class EditorController: NSObject, TextViewDelegate, UIScrollViewDelegate, 
         textView.backgroundColor = base.background
         textView.insertionPointColor = tint
         textView.selectionBarColor = tint
-        textView.selectionHighlightColor = base.selection
+        // The system draws the selection over the text, so an opaque colour hides what is selected.
+        textView.selectionHighlightColor = tint.withAlphaComponent(0.3)
         textView.overrideUserInterfaceStyle = base.isDark ? .dark : .light
         textView.keyboardAppearance = base.isDark ? .dark : .light
         textView.showLineNumbers = settings.showLineNumbers
