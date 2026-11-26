@@ -55,6 +55,14 @@ public enum Languages {
 
     public static func language(id: String) -> Language? { byID[id] }
 
+    /// True when the extension belongs to a source language other than plain text. Some extensions also
+    /// name a binary format (`.ts` is TypeScript and an MPEG-2 transport stream), so a caller that would
+    /// otherwise hand such a file to a media viewer should look at its bytes first.
+    public static func claimsExtension(_ ext: String) -> Bool {
+        guard let language = byExtension[ext.lowercased()] else { return false }
+        return language != plain
+    }
+
     /// Picks a language from the file name, then the extension, then a `#!` line.
     public static func detect(filename: String, firstLine: String? = nil) -> Language {
         let name = (filename as NSString).lastPathComponent.lowercased()

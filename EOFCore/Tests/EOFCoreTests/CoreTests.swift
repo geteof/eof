@@ -19,6 +19,23 @@ final class LanguageTests: XCTestCase {
         }
     }
 
+    // .ts is both TypeScript and an MPEG-2 transport stream; the app looks at the bytes when a language claims an extension.
+    func testLanguagesClaimSourceExtensionsOnly() {
+        XCTAssertTrue(Languages.claimsExtension("ts"))
+        XCTAssertTrue(Languages.claimsExtension("TS"))
+        XCTAssertTrue(Languages.claimsExtension("tsx"))
+        XCTAssertTrue(Languages.claimsExtension("m"))
+        XCTAssertFalse(Languages.claimsExtension("png"))
+        XCTAssertFalse(Languages.claimsExtension("mp4"))
+        XCTAssertFalse(Languages.claimsExtension("txt"))
+        XCTAssertFalse(Languages.claimsExtension(""))
+        XCTAssertFalse(TextEncoding.looksBinary(Data("export function step(cells: Board): Board {}\n".utf8)))
+        // A transport stream packet starts with the 0x47 sync byte and carries binary payload.
+        var packet = Data([0x47, 0x40, 0x00, 0x10, 0x00])
+        packet.append(Data(repeating: 0, count: 183))
+        XCTAssertTrue(TextEncoding.looksBinary(packet))
+    }
+
     func testDetectByShebang() {
         XCTAssertEqual(Languages.detect(filename: "run", firstLine: "#!/usr/bin/env python3").id, "python")
         XCTAssertEqual(Languages.detect(filename: "run", firstLine: "#!/bin/bash -e").id, "shell")

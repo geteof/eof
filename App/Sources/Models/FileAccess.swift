@@ -14,6 +14,15 @@ enum FileAccess {
         return try body()
     }
 
+    /// The first bytes of a file, enough to tell text from binary without reading all of it.
+    static func head(_ url: URL, count: Int = 8192) -> Data {
+        withAccess(url) {
+            guard let handle = try? FileHandle(forReadingFrom: url) else { return Data() }
+            defer { try? handle.close() }
+            return (try? handle.read(upToCount: count)) ?? Data()
+        }
+    }
+
     static func read(_ url: URL) throws -> Data {
         try withAccess(url) {
             var result: Result<Data, Error> = .failure(Failure(message: "The file could not be read."))

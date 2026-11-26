@@ -50,7 +50,9 @@ struct LoadedFile {
     static func load(_ url: URL, encoding forced: TextEncoding? = nil, defaults: (encoding: TextEncoding, lineEnding: LineEnding)) throws -> LoadedFile {
         let modified = FileAccess.modificationDate(url)
         let name = url.lastPathComponent
-        if forced == nil, FileKind.isMedia(url) {
+        // An extension can name both source code and a media format: .ts is TypeScript and an MPEG-2
+        // transport stream. When a language claims the extension, the first bytes decide.
+        if forced == nil, FileKind.isMedia(url), !(Languages.claimsExtension(url.pathExtension) && !TextEncoding.looksBinary(FileAccess.head(url))) {
             let size = FileAccess.withAccess(url) { (try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0 }
             return LoadedFile(content: .media, encoding: defaults.encoding, lineEnding: defaults.lineEnding, mixedLineEndings: false, indent: nil, language: Languages.plain, byteCount: size, modified: modified)
         }
