@@ -31,6 +31,8 @@ PROJECTS = [
     ("tree-sitter-clojure", "Clojure grammar", "sogaiu/tree-sitter-clojure", "e43eff80d17cf34852dcd92ca5e6986d23a7040f", ["COPYING.txt"]),
     ("tree-sitter-gitignore", "Ignore-file grammar", "shunsambongi/tree-sitter-gitignore", "f4685bf11ac466dd278449bcfe5fd014e94aa504", ["LICENSE"]),
     ("nvim-treesitter", "Highlight queries for Clojure and ignore files, and the base of the Kotlin query", "nvim-treesitter/nvim-treesitter", "52773f0d13a0c11d0c3ef33c14ab6ecc1c17148b", ["LICENSE"]),
+    ("Mermaid", "Diagrams in the Markdown preview (App/Resources/Mermaid/mermaid.min.js, npm mermaid 12.3.0)", "mermaid-js/mermaid", "2086904e76c692331e34a45d7cc3bc30860d040e", ["LICENSE", "@bundled:App/Resources/Mermaid/mermaid.min.js"]),
+    ("DOMPurify", "Bundled in Mermaid; cleans diagram output", "cure53/DOMPurify", "3.4.17", ["LICENSE"]),
     ("Material Icon Theme", "File and folder icons", "material-extensions/vscode-material-icon-theme", "0d17360506c477b4ccb065d8acdbd056331af1fb", ["LICENSE"]),
 ]
 
@@ -53,6 +55,12 @@ entries = []
 for name, use, repo, rev, paths in PROJECTS:
     parts = []
     for path in paths:
+        if path.startswith("@bundled:"):
+            # The licence notes esbuild collected from the libraries inside a bundled script.
+            script = (ROOT / path.removeprefix("@bundled:")).read_text()
+            block = script[script.rfind("/*! Bundled license information"):]
+            parts.append("— Bundled in " + pathlib.PurePath(path).name + " —\n\n" + block.strip())
+            continue
         for file in files(repo, rev, path) if path.endswith("/") else [path]:
             body = text(repo, rev, file)
             parts.append(body if file == paths[0] else f"— {pathlib.PurePath(file).stem} —\n\n{body}")

@@ -49,6 +49,10 @@ struct PreviewView: UIViewRepresentable {
         private weak var document: EditorDocument?
         private var isMarkdown = false
         private var shellLoaded = false
+        /// Mermaid is large, so it is loaded into a page only once a diagram appears there.
+        private var mermaidState = MermaidState.absent
+
+        private enum MermaidState { case absent, loading, ready }
 
         func start(document: EditorDocument, webView: WKWebView, isMarkdown: Bool) {
             self.document = document
@@ -96,7 +100,9 @@ struct PreviewView: UIViewRepresentable {
                     let html = MarkdownHTML.render(text)
                     guard let data = try? JSONSerialization.data(withJSONObject: [html]), let json = String(data: data, encoding: .utf8) else { return }
                     DispatchQueue.main.async {
-                        webView.evaluateJavaScript("document.getElementById('content').innerHTML = \(json)[0];", completionHandler: nil)
+                        webView.evaluateJavaScript("document.getElementById('content').innerHTML = \(json)[0];") { [weak self] _, _ in
+                            if html.contains("class=\"language-mermaid\"") { self?.drawDiagrams() }
+                        }
                     }
                 }
             } else {
@@ -135,6 +141,9 @@ struct PreviewView: UIViewRepresentable {
     ul, ol { padding-left: 1.6em; }
     li { margin: 0.2em 0; }
     pre.raw-html, pre.frontmatter { color: var(--muted); }
+    .mermaid-diagram { margin: 1em 0; overflow-x: auto; text-align: center; }
+    .mermaid-diagram svg { max-width: 100%; height: auto; }
+    .mermaid-message { color: #d1242f; font-size: 0.85em; margin: 1em 0 -0.6em; }
     li > p { margin: 0.3em 0; }
     li > input[type=checkbox] { margin: 0 0.4em 0 -1.3em; }
     li:has(> input[type=checkbox]) { list-style: none; }
@@ -144,3 +153,113 @@ struct PreviewView: UIViewRepresentable {
     </html>
     """
 }
+
+// MARK: - Mermaid
+
+extension PreviewView.Coordinator {
+    /// Draws ```mermaid code blocks as diagrams. The first time a page has one, the library is
+    /// loaded into the page; after that, each render only draws diagrams whose source changed.
+    func drawDiagrams() {
+        guard let webView else { return }
+        switch mermaidState {
+        case .ready:
+            webView.evaluateJavaScript("window.eofDrawMermaid(); 0", in: nil, in: Mermaid.world, completionHandler: nil)
+        case .loading:
+            break // drawn when loading finishes, from the latest text
+        case .absent:
+            guard let library = Mermaid.library else { return }
+            mermaidState = .loading
+            webView.evaluateJavaScript(library + "\n" + Mermaid.driver + "\n0", in: nil, in: Mermaid.world) { [weak self, weak webView] result in
+                guard let self else { return }
+                if case .failure = result {
+                    self.mermaidState = .absent
+                    return
+                }
+                self.mermaidState = .ready
+                webView?.evaluateJavaScript("window.eofDrawMermaid(); 0", in: nil, in: Mermaid.world, completionHandler: nil)
+            }
+        }
+    }
+}
+
+/// The Mermaid library (App/Resources/Mermaid, the npm package's dist/mermaid.min.js) and the
+/// small driver that applies it to the preview.
+private enum Mermaid {
+    /// A script world of the app's own: Markdown previews run no page scripts, and the page's
+    /// content cannot reach the library.
+    static let world = WKContentWorld.world(name: "EOFMermaid")
+
+    static let library: String? = Bundle.main.url(forResource: "mermaid.min", withExtension: "js")
+        .flatMap { try? String(contentsOf: $0, encoding: .utf8) }
+
+    /// Replaces each `pre > code.language-mermaid` with its diagram. Diagrams are cached by source
+    /// and theme, so typing elsewhere does not redraw them. A diagram that does not parse keeps
+    /// its code, with Mermaid's message above it.
+    static let driver = #"""
+    (() => {
+      const cache = new Map();
+      const dark = window.matchMedia('(prefers-color-scheme: dark)');
+      let theme = null;
+      let counter = 0;
+      let running = false;
+      let again = false;
+
+      function setUp() {
+        const wanted = dark.matches ? 'dark' : 'default';
+        if (wanted === theme) return;
+        theme = wanted;
+        cache.clear();
+        mermaid.initialize({
+          startOnLoad: false,
+          securityLevel: 'strict',
+          suppressErrorRendering: true,
+          theme: wanted,
+          fontFamily: '-apple-system, system-ui, sans-serif',
+        });
+      }
+
+      async function draw() {
+        if (running) { again = true; return; }
+        running = true;
+        try {
+          setUp();
+          for (const code of document.querySelectorAll('pre > code.language-mermaid')) {
+            const pre = code.parentElement;
+            const source = code.textContent;
+            let entry = cache.get(source);
+            if (!entry) {
+              try {
+                entry = { svg: (await mermaid.render('eof-mermaid-' + (++counter), source)).svg };
+              } catch (error) {
+                entry = { error: String((error && error.message) || error) };
+              }
+              cache.set(source, entry);
+            }
+            if (!pre.isConnected) continue; // the text changed while this was drawing
+            if (entry.svg) {
+              const holder = document.createElement('div');
+              holder.className = 'mermaid-diagram';
+              holder.innerHTML = entry.svg;
+              pre.replaceWith(holder);
+            } else if (!(pre.previousElementSibling && pre.previousElementSibling.classList.contains('mermaid-message'))) {
+              const message = document.createElement('div');
+              message.className = 'mermaid-message';
+              message.textContent = entry.error;
+              pre.before(message);
+            }
+          }
+        } finally {
+          running = false;
+          if (again) { again = false; draw(); }
+        }
+      }
+
+      window.eofDrawMermaid = draw;
+      dark.addEventListener('change', () => {
+        // Drawn diagrams carry the old theme's colours; the next render redraws them.
+        theme = null;
+      });
+    })();
+    """#
+}
+
