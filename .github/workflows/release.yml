@@ -5,7 +5,7 @@
 # come from Release/notes.json (en-US and zh-Hans) at the tagged commit.
 #
 # Secrets: ASC_KEY_ID, ASC_ISSUER_ID, ASC_KEY_P8 (App Store Connect API key, Admin role, so Xcode can
-# use cloud-managed signing). Optional: DIST_CERT_P12 (base64) and DIST_CERT_PASSWORD to sign with a
+# use cloud-managed signing). Rerunning a tag whose build is already uploaded skips the archive and upload. Optional: DIST_CERT_P12 (base64) and DIST_CERT_PASSWORD to sign with a
 # local Apple Distribution certificate instead.
 name: Release
 
@@ -70,11 +70,26 @@ jobs:
           printf '%s\n' "$ASC_KEY_P8" > "$RUNNER_TEMP/keys/AuthKey_$ASC_KEY_ID.p8"
           chmod 600 "$RUNNER_TEMP/keys/AuthKey_$ASC_KEY_ID.p8"
 
+      - name: Check whether the build is already uploaded
+        id: uploaded
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          VERSION: ${{ steps.tag.outputs.version }}
+          BUILD: ${{ steps.tag.outputs.build }}
+        run: |
+          python3 -m venv "$RUNNER_TEMP/venv"
+          "$RUNNER_TEMP/venv/bin/pip" install --quiet 'pyjwt[crypto]==2.10.1'
+          exists=$("$RUNNER_TEMP/venv/bin/python" Tools/testflight.py --key "$RUNNER_TEMP/keys/AuthKey_$ASC_KEY_ID.p8" \
+            --app "$APP_ID" --version "$VERSION" --build "$BUILD" --exists)
+          echo "exists=$exists" >> "$GITHUB_OUTPUT"
+          if [ "$exists" = true ]; then echo "Build $VERSION ($BUILD) is already on App Store Connect; skipping archive and upload."; fi
+
       - name: Import the distribution certificate
         env:
           DIST_CERT_P12: ${{ secrets.DIST_CERT_P12 }}
           DIST_CERT_PASSWORD: ${{ secrets.DIST_CERT_PASSWORD }}
-        if: env.DIST_CERT_P12 != ''
+        if: env.DIST_CERT_P12 != '' && steps.uploaded.outputs.exists != 'true'
         run: |
           keychain="$RUNNER_TEMP/signing.keychain-db"
           password=$(uuidgen)
@@ -88,11 +103,13 @@ jobs:
           rm "$RUNNER_TEMP/dist.p12"
 
       - name: Generate the project
+        if: steps.uploaded.outputs.exists != 'true'
         run: |
           brew install xcodegen
           xcodegen generate
 
       - name: Archive
+        if: steps.uploaded.outputs.exists != 'true'
         env:
           ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
           ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
@@ -112,6 +129,7 @@ jobs:
           tail -5 "$RUNNER_TEMP/archive.log"
 
       - name: Upload to App Store Connect
+        if: steps.uploaded.outputs.exists != 'true'
         env:
           ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
           ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
@@ -143,8 +161,6 @@ jobs:
           VERSION: ${{ steps.tag.outputs.version }}
           BUILD: ${{ steps.tag.outputs.build }}
         run: |
-          python3 -m venv "$RUNNER_TEMP/venv"
-          "$RUNNER_TEMP/venv/bin/pip" install --quiet 'pyjwt[crypto]==2.10.1'
           "$RUNNER_TEMP/venv/bin/python" Tools/testflight.py \
             --key "$RUNNER_TEMP/keys/AuthKey_$ASC_KEY_ID.p8" --app "$APP_ID" \
             --version "$VERSION" --build "$BUILD" --group "$BETA_GROUP" --notes Release/notes.json

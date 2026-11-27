@@ -63,16 +63,24 @@ def wait_for_build(client, app, version, number):
         time.sleep(30)
 
 
+def find_build(client, app, version, number):
+    found = client.call("GET", "/builds", {
+        "filter[app]": app, "filter[version]": number, "filter[preReleaseVersion.version]": version,
+        "fields[builds]": "processingState", "limit": "1"})["data"]
+    return found[0] if found else None
+
+
 def set_what_to_test(client, build, notes):
+    # The API calls TestFlight's "What to Test" text `whatsNew`.
     existing = {item["attributes"]["locale"]: item["id"] for item in
                 client.call("GET", f"/builds/{build}/betaBuildLocalizations")["data"]}
     for locale, text in notes.items():
         if locale in existing:
             client.call("PATCH", f"/betaBuildLocalizations/{existing[locale]}", body={"data": {
-                "type": "betaBuildLocalizations", "id": existing[locale], "attributes": {"whatToTest": text}}})
+                "type": "betaBuildLocalizations", "id": existing[locale], "attributes": {"whatsNew": text}}})
         else:
             client.call("POST", "/betaBuildLocalizations", body={"data": {
-                "type": "betaBuildLocalizations", "attributes": {"locale": locale, "whatToTest": text},
+                "type": "betaBuildLocalizations", "attributes": {"locale": locale, "whatsNew": text},
                 "relationships": {"build": {"data": {"type": "builds", "id": build}}}}})
         print(f"What to Test set for {locale}")
 
@@ -100,11 +108,17 @@ def submit_for_review(client, build):
 
 def main():
     parser = argparse.ArgumentParser()
-    for name in ("key", "app", "version", "build", "group", "notes"):
+    for name in ("key", "app", "version", "build"):
         parser.add_argument("--" + name, required=True)
+    parser.add_argument("--group")
+    parser.add_argument("--notes")
+    parser.add_argument("--exists", action="store_true", help="only print true or false: is this build uploaded")
     args = parser.parse_args()
-    notes = json.load(open(args.notes))
     client = Client(args.key)
+    if args.exists:
+        print("true" if find_build(client, args.app, args.version, args.build) else "false")
+        return
+    notes = json.load(open(args.notes))
     build = wait_for_build(client, args.app, args.version, args.build)
     set_what_to_test(client, build, notes)
     add_to_group(client, args.app, build, args.group)
