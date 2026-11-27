@@ -1,4 +1,4 @@
 {
-  "en-US": "Settings now has a Language option (System, English, Simplified Chinese); the change applies the next time EOF opens. .ts files open as TypeScript code instead of video.",
-  "zh-Hans": "设置里新增「语言」选项（跟随系统、English、简体中文），下次打开 EOF 时生效。.ts 文件现在作为 TypeScript 代码打开，不再当成视频。"
+  "en-US": "Same app as build 25, now built and uploaded by GitHub Actions. Settings has a Language option (System, English, Simplified Chinese) that applies the next time EOF opens, and .ts files open as TypeScript code.",
+  "zh-Hans": "与 build 25 的 App 相同，这一版改由 GitHub Actions 构建和上传。设置里的「语言」选项（跟随系统、English、简体中文）在下次打开 EOF 时生效，.ts 文件作为 TypeScript 代码打开。"
 }
