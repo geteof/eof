@@ -4,7 +4,7 @@
 
 # EOF
 
-### 文件到此写完，阅读由此开始
+### 文件到此为止，阅读从此开始
 
 在 iPhone 和 iPad 上，阅读 Agent 写下的代码、Markdown 与 HTML。
 
