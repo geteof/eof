@@ -737,6 +737,16 @@
         }
       }
     },
+    "EOF switches to the new language the next time it opens.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "下次打开 EOF 时切换到新语言。"
+          }
+        }
+      }
+    },
     "Edited": {
       "localizations": {
         "zh-Hans": {
@@ -2403,6 +2413,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "统计"
+          }
+        }
+      }
+    },
+    "System": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "跟随系统"
           }
         }
       }

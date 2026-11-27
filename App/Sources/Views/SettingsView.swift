@@ -1,6 +1,41 @@
 import SwiftUI
 import EOFCore
 
+/// The app's own interface language. iOS offers this under Settings > Apps > EOF only when the
+/// device lists more than one preferred language, so EOF has its own picker. It writes
+/// `AppleLanguages` in the app's domain, which Foundation reads at launch.
+struct LanguageSection: View {
+    private static let key = "appLanguage"
+    private static let options: [(id: String, name: String)] = [("en", "English"), ("zh-Hans", "简体中文")]
+
+    @State private var selection = UserDefaults.standard.string(forKey: key) ?? ""
+    @State private var changed = false
+
+    var body: some View {
+        Section {
+            Picker("Language", selection: $selection) {
+                Text("System").tag("")
+                ForEach(Self.options, id: \.id) { Text(verbatim: $0.name).tag($0.id) }
+            }
+            .onChange(of: selection) { _, id in
+                let defaults = UserDefaults.standard
+                if id.isEmpty {
+                    defaults.removeObject(forKey: Self.key)
+                    defaults.removeObject(forKey: "AppleLanguages")
+                } else {
+                    defaults.set(id, forKey: Self.key)
+                    defaults.set([id], forKey: "AppleLanguages")
+                }
+                changed = true
+            }
+        } footer: {
+            if changed {
+                Text("EOF switches to the new language the next time it opens.")
+            }
+        }
+    }
+}
+
 struct SettingsView: View {
     @EnvironmentObject private var settings: AppSettings
     @EnvironmentObject private var model: AppModel
@@ -9,6 +44,7 @@ struct SettingsView: View {
     var body: some View {
         NavigationStack {
             Form {
+                LanguageSection()
                 Section("Appearance") {
                     Picker("Light Theme", selection: $settings.lightThemeID) {
                         ForEach(EditorTheme.light) { Text(verbatim: $0.name).tag($0.id) }
